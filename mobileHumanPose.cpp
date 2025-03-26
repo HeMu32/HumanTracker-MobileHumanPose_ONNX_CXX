@@ -111,10 +111,9 @@ cv::Mat MobileHumanPose::inference(const cv::Mat& input_tensor)
 {
     net.setInput(input_tensor);
     std::vector<cv::Mat> outputs;
+    
     net.forward(outputs, this->net.getUnconnectedOutLayersNames());
 
-        std::cout << outputs[0] << " ";
-    
     return outputs[0];
 }
 
