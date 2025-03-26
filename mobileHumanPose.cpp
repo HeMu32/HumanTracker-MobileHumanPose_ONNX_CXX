@@ -111,7 +111,7 @@ cv::Mat MobileHumanPose::inference(const cv::Mat& input_tensor)
 {
     net.setInput(input_tensor);
     std::vector<cv::Mat> outputs;
-    
+
     net.forward(outputs, this->net.getUnconnectedOutLayersNames());
 
     return outputs[0];
@@ -127,89 +127,108 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
     
     // 创建热图数组
     cv::Mat heatmaps(channels, height * width, CV_32F);
-    
+        
     // 复制数据到热图数组
-    for (int c = 0; c < channels; c++) {
-        for (int h = 0; h < height; h++) {
-            for (int w = 0; w < width; w++) {
+    for (int c = 0; c < channels; c++)
+    {
+        for (int h = 0; h < height; h++)
+        {
+            for (int w = 0; w < width; w++)
+            {
                 // 使用ptr方法访问4维数据
-                float value = *((float*)output.ptr(0, c, h) + w);
+                float value = *((float *)output.ptr(0, c, h) + w);
                 heatmaps.at<float>(c, h * width + w) = value;
             }
         }
     }
-    
+
     // 应用softmax
-    for (int i = 0; i < joint_num; i++) {
+    for (int i = 0; i < joint_num; i++)
+    {
         cv::Mat row = heatmaps.row(i);
         double sum = 0;
-        for (int j = 0; j < row.cols; j++) {
+        for (int j = 0; j < row.cols; j++)
+        {
             row.at<float>(j) = std::exp(row.at<float>(j));
             sum += row.at<float>(j);
         }
-        for (int j = 0; j < row.cols; j++) {
+        for (int j = 0; j < row.cols; j++)
+        {
             row.at<float>(j) /= sum;
         }
     }
-    
+
     // 计算最大值作为分数
     cv::Mat scores(joint_num, 1, CV_32F);
-    for (int i = 0; i < joint_num; i++) {
+    for (int i = 0; i < joint_num; i++)
+    {
         double minVal, maxVal;
         cv::Point minLoc, maxLoc;
         cv::minMaxLoc(heatmaps.row(i), &minVal, &maxVal, &minLoc, &maxLoc);
         scores.at<float>(i) = maxVal;
     }
-    
+
     // 重塑热图为3D体积
     std::vector<cv::Mat> heatmap_volumes;
-    for (int i = 0; i < joint_num; i++) {
+    for (int i = 0; i < joint_num; i++)
+    {
         cv::Mat joint_heatmap(output_depth, output_height * output_width, CV_32F);
-        for (int d = 0; d < output_depth; d++) {
+        for (int d = 0; d < output_depth; d++)
+        {
             cv::Mat row = heatmaps.row(i * output_depth + d);
             row.copyTo(joint_heatmap.row(d));
         }
         heatmap_volumes.push_back(joint_heatmap);
     }
-    
+
     // 计算坐标
     cv::Mat accu_x(joint_num, 1, CV_32F);
     cv::Mat accu_y(joint_num, 1, CV_32F);
     cv::Mat accu_z(joint_num, 1, CV_32F);
-    
-    for (int i = 0; i < joint_num; i++) {
+
+    for (int i = 0; i < joint_num; i++)
+    {
         // 计算x坐标
         float x_sum = 0;
-        for (int w = 0; w < output_width; w++) {
+        for (int w = 0; w < output_width; w++)
+        {
             float col_sum = 0;
-            for (int d = 0; d < output_depth; d++) {
-                for (int h = 0; h < output_height; h++) {
+            for (int d = 0; d < output_depth; d++)
+            {
+                for (int h = 0; h < output_height; h++)
+                {
                     col_sum += heatmap_volumes[i].at<float>(d, h * output_width + w);
                 }
             }
             x_sum += col_sum * w;
         }
         accu_x.at<float>(i) = x_sum / output_width;
-        
+
         // 计算y坐标
         float y_sum = 0;
-        for (int h = 0; h < output_height; h++) {
+        for (int h = 0; h < output_height; h++)
+        {
             float row_sum = 0;
-            for (int d = 0; d < output_depth; d++) {
-                for (int w = 0; w < output_width; w++) {
+            for (int d = 0; d < output_depth; d++)
+            {
+                for (int w = 0; w < output_width; w++)
+                {
                     row_sum += heatmap_volumes[i].at<float>(d, h * output_width + w);
                 }
             }
             y_sum += row_sum * h;
         }
         accu_y.at<float>(i) = y_sum / output_height;
-        
+
         // 计算z坐标
         float z_sum = 0;
-        for (int d = 0; d < output_depth; d++) {
+        for (int d = 0; d < output_depth; d++)
+        {
             float depth_sum = 0;
-            for (int h = 0; h < output_height; h++) {
-                for (int w = 0; w < output_width; w++) {
+            for (int h = 0; h < output_height; h++)
+            {
+                for (int w = 0; w < output_width; w++)
+                {
                     depth_sum += heatmap_volumes[i].at<float>(d, h * output_width + w);
                 }
             }
@@ -217,39 +236,45 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
         }
         accu_z.at<float>(i) = z_sum / output_depth * 2 - 1;
     }
-    
+
     // 创建2D和3D姿态矩阵
     cv::Mat pose_2d(joint_num, 2, CV_32F);
-    for (int i = 0; i < joint_num; i++) {
+    for (int i = 0; i < joint_num; i++)
+    {
         pose_2d.at<float>(i, 0) = accu_x.at<float>(i) * img_width + bbox[0];
         pose_2d.at<float>(i, 1) = accu_y.at<float>(i) * img_height + bbox[1];
     }
-    
+
     cv::Mat joint_depth(joint_num, 1, CV_32F);
-    for (int i = 0; i < joint_num; i++) {
+    for (int i = 0; i < joint_num; i++)
+    {
         joint_depth.at<float>(i) = accu_z.at<float>(i) * 1000 + abs_depth;
     }
-    
+
     cv::Mat pose_3d = utils.pixel2cam(pose_2d, joint_depth, focal_length, principal_points);
-    
+
     // 计算关节热图
     cv::Mat person_heatmap(output_height, output_width, CV_32F, cv::Scalar(0));
-    for (int i = 0; i < joint_num; i++) {
-        for (int h = 0; h < output_height; h++) {
-            for (int w = 0; w < output_width; w++) {
+    for (int i = 0; i < joint_num; i++)
+    {
+        for (int h = 0; h < output_height; h++)
+        {
+            for (int w = 0; w < output_width; w++)
+            {
                 float sum = 0;
-                for (int d = 0; d < output_depth; d++) {
+                for (int d = 0; d < output_depth; d++)
+                {
                     sum += heatmap_volumes[i].at<float>(d, h * output_width + w);
                 }
                 person_heatmap.at<float>(h, w) += std::sqrt(sum);
             }
         }
     }
-    
+
     // 调整热图大小
     cv::Mat resized_heatmap;
     cv::resize(person_heatmap, resized_heatmap, cv::Size(img_width, img_height));
-    
+
     return std::make_tuple(pose_2d, pose_3d, resized_heatmap, scores);
 }
 
@@ -291,7 +316,7 @@ void MobileHumanPose::getModelOutputDetails()
     output_names = out_names;
     
     // 假设输出形状为 [1, joint_num*depth, height, width]
-    output_depth    = 64 / joint_num;  // 假设深度为64/joint_num
+    output_depth    = this->output_depth / this->joint_num;  // 64/joint_num-1
     output_height   = this->output_height;  // 假设高度为32
     output_width    = this->output_width;   // 假设宽度为32
 }

@@ -7,7 +7,7 @@
 
 #include "yolo_fast.h"
 #include "mobileHumanPose.h"
-
+/*
 int main()
 {
 	std::vector<cv::Mat> outs;
@@ -91,8 +91,8 @@ int main()
 
     return 0;
 }
+*/
 
-/*
 int main()
 {
 	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx"
@@ -166,7 +166,7 @@ int main()
     cv::imshow("Estimated pose", combined_img);
     cv::waitKey(0);
 }
-*/
+
 /*
 int main()
 {
