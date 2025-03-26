@@ -180,7 +180,37 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
         }
         heatmap_volumes.push_back(joint_heatmap);
     }
-
+/*
+    // 保存热图层以供可视化
+    for (int i = 0; i < std::min(joint_num, 3); i++) // 仅保存前3个关节以避免生成过多文件
+    {
+        for (int d = 0; d < output_depth; d++)
+        {
+            // 从heatmap_volumes中提取单层热图
+            cv::Mat heatmap_layer(output_height, output_width, CV_32F);
+            for (int h = 0; h < output_height; h++)
+            {
+                for (int w = 0; w < output_width; w++)
+                {
+                    heatmap_layer.at<float>(h, w) = heatmap_volumes[i].at<float>(d, h * output_width + w);
+                }
+            }
+            
+            // 归一化热图以便可视化
+            cv::Mat normalized_heatmap;
+            cv::normalize(heatmap_layer, normalized_heatmap, 0, 255, cv::NORM_MINMAX);
+            normalized_heatmap.convertTo(normalized_heatmap, CV_8U);
+            
+            // 应用伪彩色映射以增强可视化效果
+            cv::Mat colored_heatmap;
+            cv::applyColorMap(normalized_heatmap, colored_heatmap, cv::COLORMAP_JET);
+            
+            // 创建文件名并保存
+            std::string filename = "heatmap_joint_" + std::to_string(i) + "_depth_" + std::to_string(d) + ".jpg";
+            cv::imwrite(filename, colored_heatmap);
+        }
+    }
+*/
     // 计算坐标
     cv::Mat accu_x(joint_num, 1, CV_32F);
     cv::Mat accu_y(joint_num, 1, CV_32F);
