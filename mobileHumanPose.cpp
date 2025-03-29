@@ -178,11 +178,36 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
             cv::Mat row = heatmaps.row(i * output_depth + d);
             row.copyTo(joint_heatmap.row(d));
         }
+        
+        // 检查热图中是否有负值并修正
+        double minVal, maxVal;
+        cv::minMaxLoc(joint_heatmap, &minVal, &maxVal);
+        
+        if (minVal < 0) {
+#ifdef _DEBUG
+            std::cout << "修正前 - 关节 " << i << " 的热图中发现负值: 最小值 = " << minVal << ", 最大值 = " << maxVal << std::endl;
+#endif
+            // 修正负值 - 方法1：将所有负值设为0
+            for (int d = 0; d < output_depth; d++) {
+                for (int j = 0; j < output_height * output_width; j++) {
+                    if (joint_heatmap.at<float>(d, j) < 0) {
+                        joint_heatmap.at<float>(d, j) = 0;
+                    }
+                }
+            }
+            
+#ifdef _DEBUG
+            // 重新检查修正后的值
+            cv::minMaxLoc(joint_heatmap, &minVal, &maxVal);
+            std::cout << "修正后 - 关节 " << i << " 的热图值范围: 最小值 = " << minVal << ", 最大值 = " << maxVal << std::endl;
+#endif
+        }
+        
         heatmap_volumes.push_back(joint_heatmap);
     }
 /*
     // 保存热图层以供可视化
-    for (int i = 0; i < std::min(joint_num, 3); i++) // 仅保存前3个关节以避免生成过多文件
+    for (int i = 0; i < std::min(joint_num, 1); i++) // 仅保存前1个关节以避免生成过多文件
     {
         for (int d = 0; d < output_depth; d++)
         {
@@ -211,13 +236,77 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
         }
     }
 */
-    // 计算坐标
+
+    // 将21关节的32层深度热图映射为2D热图并保存
+    std::vector<cv::Mat> joint_2d_heatmaps;
+    for (int i = 0; i < joint_num; i++)
+    {
+        // 创建2D热图 - 将深度维度压缩
+        cv::Mat joint_2d_heatmap(output_height, output_width, CV_32F, cv::Scalar(0));
+        
+        // 对每个像素位置，累加所有深度层的值
+        for (int h = 0; h < output_height; h++)
+        {
+            for (int w = 0; w < output_width; w++)
+            {
+                float pixel_sum = 0;
+                for (int d = 0; d < output_depth; d++)
+                {
+                    pixel_sum += heatmap_volumes[i].at<float>(d, h * output_width + w);
+                }
+                joint_2d_heatmap.at<float>(h, w) = pixel_sum;
+            }
+        }
+        
+        // 保存2D热图以供后续处理
+        joint_2d_heatmaps.push_back(joint_2d_heatmap);
+/*
+        // 归一化热图以便可视化
+        cv::Mat normalized_heatmap;
+        cv::normalize(joint_2d_heatmap, normalized_heatmap, 0, 255, cv::NORM_MINMAX);
+        normalized_heatmap.convertTo(normalized_heatmap, CV_8U);
+        
+        // 应用伪彩色映射以增强可视化效果
+        cv::Mat colored_heatmap;
+        cv::applyColorMap(normalized_heatmap, colored_heatmap, cv::COLORMAP_JET);
+    
+        // 创建文件名并保存
+        std::string filename = "joint_" + std::to_string(i) + "_2d_heatmap.jpg";
+        cv::imwrite(filename, colored_heatmap);
+*/    
+    }
+
+    // 从2D热图估算关节坐标
+    cv::Mat heatmap_coords(joint_num, 2, CV_32F);
+    for (int i = 0; i < joint_num; i++)
+    {
+        // 找到热图中的最大值位置
+        double minVal, maxVal;
+        cv::Point minLoc, maxLoc;
+        cv::minMaxLoc(joint_2d_heatmaps[i], &minVal, &maxVal, &minLoc, &maxLoc);
+        
+        // 使用最大值位置作为关节坐标
+        heatmap_coords.at<float>(i, 0) = maxLoc.x;
+        heatmap_coords.at<float>(i, 1) = maxLoc.y;
+    }
+    
+    // 打印从2D热图估算的关节坐标
+    std::cout << "从2D热图估算的关节坐标 (x, y):" << std::endl;
+    for (int i = 0; i < joint_num; i++)
+    {
+        std::cout << "关节 " << i << ": (" 
+                  << heatmap_coords.at<float>(i, 0) << ", " 
+                  << heatmap_coords.at<float>(i, 1) << ")" << std::endl;
+    }
+
+    // Calculate coordinate from heatmaps, in accumalative value
     cv::Mat accu_x(joint_num, 1, CV_32F);
     cv::Mat accu_y(joint_num, 1, CV_32F);
     cv::Mat accu_z(joint_num, 1, CV_32F);
 
     for (int i = 0; i < joint_num; i++)
-    {
+    {   // Traverse thru all joints
+    
         // 计算x坐标
         float x_sum = 0;
         for (int w = 0; w < output_width; w++)
@@ -228,6 +317,22 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
                 for (int h = 0; h < output_height; h++)
                 {
                     col_sum += heatmap_volumes[i].at<float>(d, h * output_width + w);
+
+                    if (col_sum < 0) 
+                    {
+#ifdef _DEBUG
+                        std::cout << "发现负值! 关节:" << i << " 深度:" << d << " 高度:" << h << " 宽度:" << w 
+                                  << " 值:" << heatmap_volumes[i].at<float>(d, h * output_width + w) 
+                                  << " 累积和:" << col_sum << std::endl;
+                        // 检查热图中的值
+                        double minVal, maxVal;
+                        cv::minMaxLoc(heatmap_volumes[i], &minVal, &maxVal);
+                        std::cout << "热图体积 " << i << " 的最小值: " << minVal << " 最大值: " << maxVal << std::endl;
+#endif
+                        
+                        // 修正负值而不是退出
+                        col_sum = 0;
+                    }
                 }
             }
             x_sum += col_sum * w;
@@ -267,12 +372,33 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
         accu_z.at<float>(i) = z_sum / output_depth * 2 - 1;
     }
 
-    // 创建2D和3D姿态矩阵
-    cv::Mat pose_2d(joint_num, 2, CV_32F);
+    // 打印每个关节的accu_x, accu_y, accu_z到控制台
+    std::cout << "关节累积坐标 (accu_x, accu_y, accu_z):" << std::endl;
     for (int i = 0; i < joint_num; i++)
     {
-        pose_2d.at<float>(i, 0) = accu_x.at<float>(i) * img_width + bbox[0];
-        pose_2d.at<float>(i, 1) = accu_y.at<float>(i) * img_height + bbox[1];
+        std::cout << "关节 " << i << ": (" 
+                  << accu_x.at<float>(i) << ", " 
+                  << accu_y.at<float>(i) << ", " 
+                  << accu_z.at<float>(i) << ")" << std::endl;
+    }
+
+    // 创建2D和3D姿态矩阵
+    cv::Mat pose_2d(joint_num, 2, CV_32F);
+    float xCenter = bbox[0];
+    float yCenter = bbox[1];
+    for (int i = 0; i < joint_num; i++)
+    {
+        pose_2d.at<float>(i, 0) = accu_x.at<float>(i) + xCenter;
+        pose_2d.at<float>(i, 1) = accu_y.at<float>(i) + yCenter;
+    }
+
+    // 打印2D关节位置到控制台
+    std::cout << "2D关节位置:" << std::endl;
+    for (int i = 0; i < joint_num; i++)
+    {
+        std::cout << "关节 " << i << ": (" 
+                  << pose_2d.at<float>(i, 0) << ", " 
+                  << pose_2d.at<float>(i, 1) << ")" << std::endl;
     }
 
     cv::Mat joint_depth(joint_num, 1, CV_32F);

@@ -98,9 +98,13 @@ int main()
 	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx"
 							);
 	// 检测人体
-    std::vector<cv::Vec4i> boxes = {cv::Vec4i(200, 40, 360, 540)};
     std::vector<float> 		scores	= {99};
-    cv::Mat					image	= cv::imread ("1.png");
+    // std::vector<cv::Vec4i> boxes = {cv::Vec4i(200, 40, 360, 540)};
+    // cv::Mat					image	= cv::imread ("1.png");
+    std::vector<cv::Vec4i>  boxes = {cv::Vec4i(555, 888, 2400, 3600)};
+    cv::Mat					image	= cv::imread ("2.jpg");
+
+
 
 	std::string				output_image_path = "dec.jpg";
 
