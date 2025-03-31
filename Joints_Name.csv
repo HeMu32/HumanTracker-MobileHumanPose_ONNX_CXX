@@ -1,0 +1,22 @@
+﻿Name,Std.Index,Here.Index
+Head_top,0,0
+Thorax,1,
+R_Shoulder,2,
+R_Elbow,3,
+R_Wrist,4,
+L_Shoulder,5,
+L_Elbow,6,
+L_Wrist,7,
+R_Hip,8,8
+R_Knee,9,
+R_Ankle,10,
+L_Hip,11,6 or 7
+L_Knee,12,
+L_Ankle,13,
+Pelvis,14,11
+Spine,15,
+Head,16,1
+R_Hand,17,3
+L_Hand,18,10
+R_Toe,19,
+L_Toe,20,

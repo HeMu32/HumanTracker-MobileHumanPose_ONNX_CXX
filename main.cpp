@@ -95,13 +95,13 @@ int main()
 
 int main()
 {
-	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx"
-							);
+	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
 	// 检测人体
     std::vector<float> 		scores	= {99};
     // std::vector<cv::Vec4i> boxes = {cv::Vec4i(200, 40, 360, 540)};
     // cv::Mat					image	= cv::imread ("1.png");
-    std::vector<cv::Vec4i>  boxes = {cv::Vec4i(555, 888, 2400, 3600)};
+    // std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(555, 888, 2400, 3600)};
+    std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(600, 960, 1467, 3560)};
     cv::Mat					image	= cv::imread ("2.jpg");
 
 
@@ -117,10 +117,10 @@ int main()
     // 模拟深度
     std::vector<float> depths;
     for (const auto& box : boxes) {
-        int width = box[2] - box[0];
-        int height = box[3] - box[1];
-        float area = width * height;
-        float depth = 500 / (area / (image.rows * image.cols)) + 500;
+        int     width   = box[2] - box[0];
+        int     height  = box[3] - box[1];
+        float   area    = width * height;
+        float   depth   = 500 / (area / (image.rows * image.cols)) + 500;
         depths.push_back(depth);
     }
     

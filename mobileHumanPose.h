@@ -28,14 +28,20 @@ public:
     std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> estimatePose(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth);
     
     /// @brief      
-    /// @param image 
-    /// @param bbox 
+    /// @param image    Picture to be dectected
+    /// @param bbox     Bound box of a person, xyxy (not xywh!)
     /// @return         tuple <cv::Mat, cv::Mat>, 
-    ///                 first for pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1)
+    ///                 first for pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1), 
+    ///                 in regard of top left of the box, unit: pixel
     ///                 second for score
     std::tuple<cv::Mat, cv::Mat> estimatePose2d(const cv::Mat& image, const cv::Vec4i& bbox);
 
     // 处理输出 - 仅计算2D姿态（更高效）
+
+    /// @brief          处理输出 - 仅计算2D姿态（更高效）
+    /// @param output 
+    /// @param bbox     box
+    /// @return 
     std::tuple<cv::Mat, cv::Mat> processOutput2d(const cv::Mat& output, const cv::Vec4i& bbox);
     
 private:

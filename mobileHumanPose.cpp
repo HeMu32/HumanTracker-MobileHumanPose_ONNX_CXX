@@ -502,6 +502,33 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
         }
     }
 
+    // 对每个关节热图应用Softmax归一化
+    for (int i = 0; i < joint_num; i++)
+    {
+        // 计算指数和总和
+        double sum = 0;
+        for (int h = 0; h < height; h++)
+        {
+            for (int w = 0; w < width; w++)
+            {
+                heatmaps[i].at<float>(h, w) = std::exp(heatmaps[i].at<float>(h, w));
+                sum += heatmaps[i].at<float>(h, w);
+            }
+        }
+        
+        // 归一化
+        if (sum > 0)
+        {
+            for (int h = 0; h < height; h++)
+            {
+                for (int w = 0; w < width; w++)
+                {
+                    heatmaps[i].at<float>(h, w) /= sum;
+                }
+            }
+        }
+    }
+
     // 创建所有关节的组合热图
     cv::Mat combined_heatmap(height, width, CV_32F, cv::Scalar(0));
     for (int i = 0; i < joint_num; i++)
@@ -547,7 +574,6 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
         {
             for (int w = 0; w < width; w++)
             {
-                // 使用新的二维热图数据结构访问方式
                 person_heatmap.at<float>(h, w) += heatmaps[i].at<float>(h, w);
             }
         }
@@ -559,14 +585,14 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
     // 计算关节坐标 - 使用最大值法而不是加权平均法
     cv::Mat max_x(joint_num, 1, CV_32F);
     cv::Mat max_y(joint_num, 1, CV_32F);
-
+/*
     // 对热图进行高斯模糊预处理，以减少噪声并使关节位置估计更加稳定
     // 直接在原热图上应用高斯模糊
     for (int i = 0; i < joint_num; i++)
     {
         cv::GaussianBlur(heatmaps[i], heatmaps[i], cv::Size(3, 3), 1.5);
     }
-
+*/
     for (int i = 0; i < joint_num; i++)
     {
         // 找到热图中的最大值位置
@@ -583,10 +609,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
         // 如果最大值太小，可能是不可靠的检测，使用默认值
         if (maxVal < 0.1) // 可以根据需要调整阈值
         {
-            std::cout << "警告: 关节 " << i << " 的最大概率值 " << maxVal 
-                      << " 低于阈值，使用默认位置" << std::endl;
-            max_x.at<float>(i) = width / 2.0f;
-            max_y.at<float>(i) = height / 2.0f;
+            std::cout << "警告: 关节 " << i << " 的最大概率值 " << maxVal << std::endl;
         }
     }
 
@@ -601,22 +624,25 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
     }
 
     // 创建2D姿态矩阵
+    // 热图位置似乎是左下角对应输入图片的右上角, 不知道为什么...
+    // 计算关于框的左上角, 以像素为单位的关节位置
+    // 最大值点的y坐标似乎已经翻转了, 不管了
     cv::Mat pose_2d(joint_num, 2, CV_32F);
-    float xCenter = bbox[0];
-    float yCenter = bbox[1];
+    int boxW = bbox[2] - bbox[0];
+    int boxH = bbox[3] - bbox[1];
     for (int i = 0; i < joint_num; i++)
     {
-        pose_2d.at<float>(i, 0) = max_x.at<float>(i) + xCenter;
-        pose_2d.at<float>(i, 1) = max_y.at<float>(i) + yCenter;
+        pose_2d.at<float>(i, 0) = (1 - (max_x.at<float>(i) / 32)) * boxW;
+        pose_2d.at<float>(i, 1) = (max_y.at<float>(i) / 32) * boxH;
     }
 
     // 打印2D关节位置到控制台
     std::cout << "2D关节位置:" << std::endl;
     for (int i = 0; i < joint_num; i++)
     {
-        std::cout << "关节 " << i << ": (" 
+        std::cout << i << ", " 
                   << pose_2d.at<float>(i, 0) << ", " 
-                  << pose_2d.at<float>(i, 1) << ")" << std::endl;
+                  << pose_2d.at<float>(i, 1) << std::endl;
     }
 
 
