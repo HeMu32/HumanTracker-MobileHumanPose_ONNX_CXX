@@ -24,8 +24,20 @@ public:
     std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> operator()(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth = 1.0);
     
     // 姿态估计主函数
-    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> estimatePose(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth = 1000.0);
+    // 估计姿态 - 完整版（包含3D信息）
+    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> estimatePose(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth);
+    
+    /// @brief      
+    /// @param image 
+    /// @param bbox 
+    /// @return         tuple <cv::Mat, cv::Mat>, 
+    ///                 first for pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1)
+    ///                 second for score
+    std::tuple<cv::Mat, cv::Mat> estimatePose2d(const cv::Mat& image, const cv::Vec4i& bbox);
 
+    // 处理输出 - 仅计算2D姿态（更高效）
+    std::tuple<cv::Mat, cv::Mat> processOutput2d(const cv::Mat& output, const cv::Vec4i& bbox);
+    
 private:
     // 初始化模型
     void initializeModel(const std::string& model_path);

@@ -86,8 +86,8 @@ cv::Mat PoseEstimationUtils::drawSkeleton(cv::Mat& img, const cv::Mat& keypoints
         // 绘制关节点
         cv::circle(result, point1, 5, colors_cv[i % colors_cv.size()], -1, cv::LINE_AA);
         cv::circle(result, point2, 5, colors_cv[i % colors_cv.size()], -1, cv::LINE_AA);
-        
-        /* 如果需要使用置信度
+ /*       
+        如果需要使用置信度
         if (scores.at<float>(point1_id) > kp_thres && scores.at<float>(point2_id) > kp_thres) {
             cv::line(result, point1, point2, colors_cv[i % colors_cv.size()], 3, cv::LINE_AA);
         }
@@ -99,7 +99,7 @@ cv::Mat PoseEstimationUtils::drawSkeleton(cv::Mat& img, const cv::Mat& keypoints
         if (scores.at<float>(point2_id) > kp_thres) {
             cv::circle(result, point2, 5, colors_cv[i % colors_cv.size()], -1, cv::LINE_AA);
         }
-        */
+*/
     }
     
     return result;

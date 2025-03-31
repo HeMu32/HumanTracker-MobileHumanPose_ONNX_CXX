@@ -136,11 +136,18 @@ int main()
     std::vector<cv::Mat> pose_3d_list;
     
     // 处理每个检测到的人体
-    for (size_t i = 0; i < boxes.size(); i++) {
+    for (size_t i = 0; i < boxes.size(); i++) 
+    {
         // 估计姿态
         cv::Mat pose_2d, pose_3d, person_heatmap, joint_scores;
+/*
         std::tie(pose_2d, pose_3d, person_heatmap, joint_scores) = 
             pose_estimator.estimatePose(image, boxes[i], depths[i]);
+*/
+        // 使用更高效的2D姿态估计方法
+        cv::Mat pose_2d_fast, joint_scores_fast;
+        std::tie(pose_2d_fast, joint_scores_fast) = 
+            pose_estimator.estimatePose2d(image, boxes[i]);
         
         // 绘制骨架
         pose_img = utils.drawSkeleton(pose_img, pose_2d, joint_scores);

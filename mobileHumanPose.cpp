@@ -52,6 +52,14 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::estimatePose(con
     return processOutput(output, abs_depth, bbox);
 }
 
+// 添加2D姿态估计函数 - 更高效的版本，不计算3D信息
+std::tuple<cv::Mat, cv::Mat> MobileHumanPose::estimatePose2d(const cv::Mat& image, const cv::Vec4i& bbox)
+{
+    cv::Mat input_tensor = prepareInput(image, bbox);
+    cv::Mat output = inference(input_tensor);
+    return processOutput2d(output, bbox);
+}
+
 cv::Mat MobileHumanPose::prepareInput(const cv::Mat& image, const cv::Vec4i& bbox)
 {
     // 检查边界框是否有效
@@ -156,6 +164,27 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
         {
             row.at<float>(j) /= sum;
         }
+    }
+
+    // 检查softmax处理后的概率和是否为1
+    for (int i = 0; i < joint_num; i++)
+    {
+        cv::Mat row = heatmaps.row(i);
+        double prob_sum = 0;
+        for (int j = 0; j < row.cols; j++)
+        {
+            prob_sum += row.at<float>(j);
+        }
+        // 由于浮点数精度问题，使用接近1的阈值
+        if (std::abs(prob_sum - 1.0) > 1e-5) {
+            std::cout << "警告: 关节 " << i << " 的概率和为 " << prob_sum 
+                      << "，与预期的1.0有偏差" << std::endl;
+        }
+#ifdef _DEBUG
+        else {
+            std::cout << "关节 " << i << " 的概率和正确: " << prob_sum << std::endl;
+        }
+#endif
     }
 
     // 计算最大值作为分数
@@ -432,6 +461,166 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
     cv::resize(person_heatmap, resized_heatmap, cv::Size(img_width, img_height));
 
     return std::make_tuple(pose_2d, pose_3d, resized_heatmap, scores);
+}
+
+// 添加一个新的处理函数，专门用于2D姿态估计，不计算热图体积
+std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& output, const cv::Vec4i& bbox)
+{
+    // 重塑输出为热图
+    int batch_size  = output.size[0];
+    int channels    = output.size[1];
+    int height      = output.size[2];
+    int width       = output.size[3];
+    
+    // 创建热图数组 - 使用二维结构而不是一维展平结构
+    std::vector<cv::Mat> heatmaps;
+    for (int i = 0; i < joint_num; i++)
+    {
+        // 为每个关节创建一个二维热图矩阵
+        cv::Mat joint_heatmap(height, width, CV_32F, cv::Scalar(0));
+        heatmaps.push_back(joint_heatmap);
+    }
+    
+    // 复制数据到热图数组 - 累加每个关节的所有深度层
+    for (int i = 0; i < joint_num; i++)
+    {
+        for (int d = 0; d < output_depth; d++)
+        {
+            for (int h = 0; h < height; h++)
+            {
+                for (int w = 0; w < width; w++)
+                {
+                    // 使用ptr方法访问4维数据 - 累加所有深度层
+                    float value = *((float *)output.ptr(0, i * output_depth + d, h) + w);
+                    if (value > 0)
+                    {
+                        // 直接访问二维矩阵中的元素
+                        heatmaps[i].at<float>(h, w) += value;
+                    }
+                }
+            }
+        }
+    }
+
+    // 创建所有关节的组合热图
+    cv::Mat combined_heatmap(height, width, CV_32F, cv::Scalar(0));
+    for (int i = 0; i < joint_num; i++)
+    {
+        for (int h = 0; h < height; h++)
+        {
+            for (int w = 0; w < width; w++)
+            {
+                // 使用新的二维热图数据结构访问方式
+                combined_heatmap.at<float>(h, w) += heatmaps[i].at<float>(h, w);
+            }
+        }
+    }
+    
+    // 归一化组合热图
+    cv::Mat normalized_combined;
+    cv::normalize(combined_heatmap, normalized_combined, 0, 255, cv::NORM_MINMAX);
+    normalized_combined.convertTo(normalized_combined, CV_8U);
+    
+    // 应用伪彩色映射
+    cv::Mat colored_combined;
+    cv::applyColorMap(normalized_combined, colored_combined, cv::COLORMAP_JET);
+    
+    // 保存组合热图
+    cv::imwrite("heatmaps_2d/combined_heatmap.jpg", colored_combined);
+
+    // 计算最大值作为分数
+    cv::Mat scores(joint_num, 1, CV_32F);
+    for (int i = 0; i < joint_num; i++)
+    {
+        double minVal, maxVal;
+        cv::Point minLoc, maxLoc;
+        // 直接在二维热图上查找最大值
+        cv::minMaxLoc(heatmaps[i], &minVal, &maxVal, &minLoc, &maxLoc);
+        scores.at<float>(i) = maxVal;
+    }
+    
+    // 计算关节热图 - 用于可视化
+    cv::Mat person_heatmap(height, width, CV_32F, cv::Scalar(0));
+    for (int i = 0; i < joint_num; i++)
+    {
+        for (int h = 0; h < height; h++)
+        {
+            for (int w = 0; w < width; w++)
+            {
+                // 使用新的二维热图数据结构访问方式
+                person_heatmap.at<float>(h, w) += heatmaps[i].at<float>(h, w);
+            }
+        }
+    }
+    // 调整热图大小
+    cv::Mat resized_heatmap;
+    cv::resize(person_heatmap, resized_heatmap, cv::Size(img_width, img_height));
+
+    // 计算关节坐标 - 使用最大值法而不是加权平均法
+    cv::Mat max_x(joint_num, 1, CV_32F);
+    cv::Mat max_y(joint_num, 1, CV_32F);
+
+    // 对热图进行高斯模糊预处理，以减少噪声并使关节位置估计更加稳定
+    // 直接在原热图上应用高斯模糊
+    for (int i = 0; i < joint_num; i++)
+    {
+        cv::GaussianBlur(heatmaps[i], heatmaps[i], cv::Size(3, 3), 1.5);
+    }
+
+    for (int i = 0; i < joint_num; i++)
+    {
+        // 找到热图中的最大值位置
+        double minVal, maxVal;
+        cv::Point minLoc, maxLoc;
+        
+        // 直接在二维热图上查找最大值
+        cv::minMaxLoc(heatmaps[i], &minVal, &maxVal, &minLoc, &maxLoc);
+        
+        // 使用最大值位置作为关节坐标
+        max_x.at<float>(i) = static_cast<float>(maxLoc.x);
+        max_y.at<float>(i) = static_cast<float>(maxLoc.y);
+        
+        // 如果最大值太小，可能是不可靠的检测，使用默认值
+        if (maxVal < 0.1) // 可以根据需要调整阈值
+        {
+            std::cout << "警告: 关节 " << i << " 的最大概率值 " << maxVal 
+                      << " 低于阈值，使用默认位置" << std::endl;
+            max_x.at<float>(i) = width / 2.0f;
+            max_y.at<float>(i) = height / 2.0f;
+        }
+    }
+
+    // 打印每个关节的max_x, max_y到控制台
+    std::cout << "2D关节累积坐标 (max_x, max_y):" << std::endl;
+    for (int i = 0; i < joint_num; i++)
+    {
+        std::cout << i << ", "
+                  << max_x.at<float>(i) << ", " 
+                  << max_y.at<float>(i)
+                  << std::endl;
+    }
+
+    // 创建2D姿态矩阵
+    cv::Mat pose_2d(joint_num, 2, CV_32F);
+    float xCenter = bbox[0];
+    float yCenter = bbox[1];
+    for (int i = 0; i < joint_num; i++)
+    {
+        pose_2d.at<float>(i, 0) = max_x.at<float>(i) + xCenter;
+        pose_2d.at<float>(i, 1) = max_y.at<float>(i) + yCenter;
+    }
+
+    // 打印2D关节位置到控制台
+    std::cout << "2D关节位置:" << std::endl;
+    for (int i = 0; i < joint_num; i++)
+    {
+        std::cout << "关节 " << i << ": (" 
+                  << pose_2d.at<float>(i, 0) << ", " 
+                  << pose_2d.at<float>(i, 1) << ")" << std::endl;
+    }
+
+
+    return std::make_tuple(pose_2d, scores);
 }
 
 void MobileHumanPose::getModelInputDetails()
