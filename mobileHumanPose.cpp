@@ -326,9 +326,8 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
     std::cout << "从2D热图估算的关节坐标 (x, y):" << std::endl;
     for (int i = 0; i < joint_num; i++)
     {
-        std::cout << "关节 " << i << ": (" 
-                  << heatmap_coords.at<float>(i, 0) << ", " 
-                  << heatmap_coords.at<float>(i, 1) << ")" << std::endl;
+        std::cout << heatmap_coords.at<float>(i, 0) << ", " 
+                  << heatmap_coords.at<float>(i, 1) << std::endl;
     }
 
     // Calculate coordinate from heatmaps, in accumalative value
@@ -504,7 +503,46 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
             }
         }
     }
-
+    // 保存每个关节的热图为PNG文件以供可视化
+    // 创建保存热图的目录
+    std::string heatmap_dir = "heatmaps_2d";
+    std::string cmd = "mkdir -p " + heatmap_dir;
+    system(cmd.c_str());
+    
+    for (int i = 0; i < joint_num; i++)
+    {
+        // 归一化热图以便可视化
+        cv::Mat normalized_heatmap;
+        cv::normalize(heatmaps[i], normalized_heatmap, 0, 255, cv::NORM_MINMAX);
+        normalized_heatmap.convertTo(normalized_heatmap, CV_8U);
+        
+        // 放大热图4倍
+        cv::Mat resized_heatmap;
+        cv::resize(normalized_heatmap, resized_heatmap, cv::Size(width * 4, height * 4), 0, 0, cv::INTER_CUBIC);
+        
+        // 应用伪彩色映射以增强可视化效果
+        cv::Mat colored_heatmap;
+        cv::applyColorMap(resized_heatmap, colored_heatmap, cv::COLORMAP_JET);
+        
+        // 创建文件名并保存
+        std::string filename = heatmap_dir + "/joint_" + std::to_string(i) + "_heatmap.png";
+        cv::imwrite(filename, colored_heatmap);
+        
+        // 可选：在热图上标记最大值位置
+        double minVal, maxVal;
+        cv::Point minLoc, maxLoc;
+        cv::minMaxLoc(heatmaps[i], &minVal, &maxVal, &minLoc, &maxLoc);
+        
+        // 在放大后的热图上标记最大值位置
+        cv::circle(colored_heatmap, cv::Point(maxLoc.x * 4, maxLoc.y * 4), 5, cv::Scalar(255, 255, 255), -1);
+        cv::putText(colored_heatmap, "Joint " + std::to_string(i), 
+                    cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        
+        // 保存带标记的热图
+        std::string marked_filename = heatmap_dir + "/joint_" + std::to_string(i) + "_heatmap_marked.png";
+        cv::imwrite(marked_filename, colored_heatmap);
+    }
+/*
     // 对每个关节热图应用Softmax归一化
     for (int i = 0; i < joint_num; i++)
     {
@@ -531,7 +569,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
             }
         }
     }
-
+*/
     // 创建所有关节的组合热图
     cv::Mat combined_heatmap(height, width, CV_32F, cv::Scalar(0));
     for (int i = 0; i < joint_num; i++)

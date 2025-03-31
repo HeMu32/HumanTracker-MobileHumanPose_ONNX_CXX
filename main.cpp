@@ -102,8 +102,8 @@ int main()
     //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(200, 40, 360, 540)};
     //cv::Mat					image	= cv::imread ("1.png");
 
-    // std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(185, 296, 800, 1200)};
-    std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(200, 320, 490, 1187)};
+    std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(185, 296, 800, 1200)};
+    //std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(200, 320, 490, 1187)};
     cv::Mat					image	= cv::imread ("2.jpg");
 
     
@@ -146,10 +146,10 @@ int main()
     {
         // 估计姿态
         cv::Mat pose_2d, pose_3d, person_heatmap, joint_scores;
-/*
+
         std::tie(pose_2d, pose_3d, person_heatmap, joint_scores) = 
             pose_estimator.estimatePose(image, boxes[i], depths[i]);
-*/
+
         // 使用更高效的2D姿态估计方法
         cv::Mat pose_2d_fast, joint_scores_fast;
         std::tie(pose_2d_fast, joint_scores_fast) = 
@@ -181,7 +181,7 @@ int main()
                             0.5, cv::Scalar(0, 0, 255), 1);
             }
         }
-        cv::imwrite ("dec2.jpg", cropped_pose_img);
+        //cv::imwrite ("dec2.jpg", cropped_pose_img);
         cv::imshow ("dec", cropped_pose_img);
         cv::waitKey (0);
         true;
