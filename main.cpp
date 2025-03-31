@@ -98,11 +98,17 @@ int main()
 	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
 	// 检测人体
     std::vector<float> 		scores	= {99};
-    // std::vector<cv::Vec4i> boxes = {cv::Vec4i(200, 40, 360, 540)};
-    // cv::Mat					image	= cv::imread ("1.png");
-    // std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(555, 888, 2400, 3600)};
-    std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(600, 960, 1467, 3560)};
+
+    //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(200, 40, 360, 540)};
+    //cv::Mat					image	= cv::imread ("1.png");
+
+    // std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(185, 296, 800, 1200)};
+    std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(200, 320, 490, 1187)};
     cv::Mat					image	= cv::imread ("2.jpg");
+
+    
+    //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(150, 341, 853, 1190)};
+    //cv::Mat					image	= cv::imread ("3.jpg");
 
 
 
@@ -148,7 +154,39 @@ int main()
         cv::Mat pose_2d_fast, joint_scores_fast;
         std::tie(pose_2d_fast, joint_scores_fast) = 
             pose_estimator.estimatePose2d(image, boxes[i]);
+            
+        // 创建裁剪后的图像
+        cv::Rect roi(boxes[i][0], boxes[i][1], boxes[i][2] - boxes[i][0], boxes[i][3] - boxes[i][1]);
+        cv::Mat cropped_image = image(roi).clone();
         
+        // 在裁剪图像上绘制关节点
+        cv::Mat cropped_pose_img = cropped_image.clone();
+        for (int j = 0; j < pose_2d_fast.rows; j++) {
+            // 计算关节在裁剪图像中的坐标
+            int x = static_cast<int>(pose_2d_fast.at<float>(j, 0));
+            int y = static_cast<int>(pose_2d_fast.at<float>(j, 1));
+            
+            // 确保坐标在裁剪图像范围内
+            if (x >= 0 && x < cropped_image.cols && y >= 0 && y < cropped_image.rows) {
+                // 根据置信度调整圆的颜色（红色到绿色）
+                float confidence = joint_scores_fast.at<float>(j);
+                cv::Scalar color(0, 255 * confidence, 255 * (1 - confidence));
+                
+                // 绘制关节点
+                cv::circle(cropped_pose_img, cv::Point(x, y), 5, color, -1);
+                
+                // 添加关节索引标签
+                cv::putText(cropped_pose_img, std::to_string(j), 
+                            cv::Point(x + 5, y - 5), cv::FONT_HERSHEY_SIMPLEX, 
+                            0.5, cv::Scalar(0, 0, 255), 1);
+            }
+        }
+        cv::imwrite ("dec2.jpg", cropped_pose_img);
+        cv::imshow ("dec", cropped_pose_img);
+        cv::waitKey (0);
+        true;
+        
+/*
         // 绘制骨架
         pose_img = utils.drawSkeleton(pose_img, pose_2d, joint_scores);
         
@@ -159,6 +197,7 @@ int main()
         
         // 添加3D姿态
         pose_3d_list.push_back(pose_3d);
+*/
     }
     
     // 绘制热图

@@ -99,8 +99,11 @@ cv::Mat MobileHumanPose::prepareInput(const cv::Mat& image, const cv::Vec4i& bbo
     
     // 调整图像大小
     cv::Mat resized_img;
-    cv::resize(rgb_img, resized_img, cv::Size(input_width, input_height));
-    
+    cv::resize(rgb_img, resized_img, cv::Size(input_width, input_height), 1, 2);
+/*
+    cv::imshow ("woc", resized_img);
+    cv::waitKey(0);
+*/    
 /*
     // 创建blob
     cv::Mat blob = cv::dnn::blobFromImage(resized_img, 1.0, 
@@ -632,8 +635,8 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& out
     int boxH = bbox[3] - bbox[1];
     for (int i = 0; i < joint_num; i++)
     {
-        pose_2d.at<float>(i, 0) = (1 - (max_x.at<float>(i) / 32)) * boxW;
-        pose_2d.at<float>(i, 1) = (max_y.at<float>(i) / 32) * boxH;
+        pose_2d.at<float>(i, 0) = (1 - max_x.at<float>(i) / 32) * boxW;
+        pose_2d.at<float>(i, 1) = (1 - max_y.at<float>(i) / 32) * boxH;
     }
 
     // 打印2D关节位置到控制台
