@@ -99,7 +99,7 @@ int main()
 	yolo_fast       yolo_model("yolofastv2.onnx", 0.3, 0.3, 0.4);
 	// 检测人体
     std::vector<float> 		scores	= {99};
-
+/*
     //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(200, 40, 360, 540)};
     //cv::Mat					image	= cv::imread ("1.png");
 
@@ -109,34 +109,23 @@ int main()
     
     //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(150, 341, 853, 1190)};
     //cv::Mat					image	= cv::imread ("3.jpg");
-
+*/
 	std::string				output_image_path = "dec.jpg"; 
     std::vector<cv::Vec4i>  boxes;
-    cv::Mat					image	= cv::imread ("3.jpg");
+    cv::Mat					image	= cv::imread ("4.jpg");
 
 
     yolo_model.detect (image, boxes, 0);
 
     // 如果没有检测到人体，退出
-    if (boxes.empty()) {
+    if (boxes.empty()) 
+    {
         std::cout << "未检测到人体" << std::endl;
         return 0;
     }
     
-    // 模拟深度
-    std::vector<float> depths;
-    for (const auto& box : boxes) {
-        int     width   = box[2] - box[0];
-        int     height  = box[3] - box[1];
-        float   area    = width * height;
-        float   depth   = 500 / (area / (image.rows * image.cols)) + 500;
-        depths.push_back(depth);
-    }
-    
     // 创建结果图像
     cv::Mat pose_img = image.clone();
-    cv::Mat heatmap_viz_img = image.clone();
-    cv::Mat img_heatmap = cv::Mat::zeros(image.rows, image.cols, CV_32F);
     
     // 姿态估计工具
     PoseEstimationUtils utils;
@@ -149,10 +138,7 @@ int main()
     {
         // 估计姿态
         cv::Mat pose_2d, pose_3d, person_heatmap, joint_scores;
-/*
-        std::tie(pose_2d, pose_3d, person_heatmap, joint_scores) = 
-            pose_estimator.estimatePose(image, boxes[i], depths[i]);
-*/
+        
         // 使用更高效的2D姿态估计方法
         cv::Mat pose_2d_fast, joint_scores_fast;
         std::tie(pose_2d_fast, joint_scores_fast) = 
@@ -164,7 +150,8 @@ int main()
         
         // 在裁剪图像上绘制关节点
         cv::Mat cropped_pose_img = cropped_image.clone();
-        for (int j = 0; j < pose_2d_fast.rows; j++) {
+        for (int j = 0; j < pose_2d_fast.rows; j++) 
+        {
             // 计算关节在裁剪图像中的坐标
             int x = static_cast<int>(pose_2d_fast.at<float>(j, 0));
             int y = static_cast<int>(pose_2d_fast.at<float>(j, 1));
@@ -184,7 +171,7 @@ int main()
                             0.5, cv::Scalar(0, 0, 255), 1);
             }
         }
-        cv::imwrite ("dec3.jpg", cropped_pose_img);
+        //cv::imwrite ("dec3.jpg", cropped_pose_img);
         cv::imshow ("dec", cropped_pose_img);
         cv::waitKey (0);
         true;

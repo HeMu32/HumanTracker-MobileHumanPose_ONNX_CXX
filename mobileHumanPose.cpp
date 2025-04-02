@@ -6,9 +6,6 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
-// 假设YoloV5s类已经实现
-// #include "yoloV5s.h"
-
 MobileHumanPose::MobileHumanPose(const std::string &model_path, 
                                const cv::Vec2f &focal_length, 
                                const cv::Vec2f &principal_points)
@@ -29,18 +26,18 @@ void MobileHumanPose::initializeModel(const std::string &model_path)
         net = cv::dnn::readNet(model_path);
         
         if (net.empty()) {
-            std::cerr << "无法加载模型: " << model_path << std::endl;
-            throw std::runtime_error("模型加载失败");
+            std::cerr << "Cannot load MHP: " << model_path << std::endl;
+            throw std::runtime_error("Failed to load MHP");
         }
         
         // 获取模型信息
         getModelInputDetails();
         getModelOutputDetails();
         
-        std::cout << "模型加载成功: " << model_path << std::endl;
+        std::cout << "MHP loaded : " << model_path << std::endl;
     }
     catch (const cv::Exception &e) {
-        std::cerr << "加载模型时出错: " << e.what() << std::endl;
+        std::cerr << "Failed to load MHP: " << e.what() << std::endl;
         throw;
     }
 }
@@ -555,10 +552,10 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
     // 应用伪彩色映射
     cv::Mat colored_combined;
     cv::applyColorMap(normalized_combined, colored_combined, cv::COLORMAP_JET);
-    
+/*
     // 保存组合热图
     cv::imwrite("heatmaps_2d/combined_heatmap.jpg", colored_combined);
-
+*/
     // 计算最大值作为分数
     cv::Mat scores(joint_num, 1, CV_32F);
     for (int i = 0; i < joint_num; i++)
@@ -609,14 +606,15 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
         // 使用最大值位置作为关节坐标
         max_x.at<float>(i) = static_cast<float>(maxLoc.x);
         max_y.at<float>(i) = static_cast<float>(maxLoc.y);
-        
+/*
         // 如果最大值太小，可能是不可靠的检测，使用默认值
         if (maxVal < 0.1) // 可以根据需要调整阈值
         {
             std::cout << "警告: 关节 " << i << " 的最大概率值 " << maxVal << std::endl;
         }
+*/
     }
-
+/*
     // 打印每个关节的max_x, max_y到控制台
     std::cout << "2D关节累积坐标 (max_x, max_y):" << std::endl;
     for (int i = 0; i < joint_num; i++)
@@ -626,7 +624,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
                   << max_y.at<float>(i)
                   << std::endl;
     }
-
+*/
     // 创建2D姿态矩阵
     // 热图位置似乎是左下角对应输入图片的右上角, 不知道为什么...
     // 计算关于框的左上角, 以像素为单位的关节位置
@@ -639,7 +637,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
         pose_2d.at<float>(i, 0) = (1 - max_x.at<float>(i) / 32) * boxW;
         pose_2d.at<float>(i, 1) = (1 - max_y.at<float>(i) / 32) * boxH;
     }
-
+/*
     // 打印2D关节位置到控制台
     std::cout << "2D关节位置:" << std::endl;
     for (int i = 0; i < joint_num; i++)
@@ -648,7 +646,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
                   << pose_2d.at<float>(i, 0) << ", " 
                   << pose_2d.at<float>(i, 1) << std::endl;
     }
-
+*/
 
     return std::make_tuple(pose_2d, scores);
 }
