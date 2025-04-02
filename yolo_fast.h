@@ -18,8 +18,8 @@ public:
 	/// @param frame 		Picture
 	/// @param boxesResult 	Detected boxes, xyxy
 	/// @param filter 		Coco classification tag, 0 for human; or -1 for no filter.
-	void detect (cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter);
-	void detect (cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult);
+	void detect (const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter);
+	void detect (const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult);
 
 private:
 	const float anchors[2][6] 	= { {12.64,19.39, 37.88,51.48, 55.71,138.31}, {126.91,78.23, 131.57,214.55, 279.92,258.87} };

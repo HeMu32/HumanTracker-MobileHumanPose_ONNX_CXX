@@ -16,16 +16,16 @@ class YoloV5s;
 class MobileHumanPose
 {
 public:
-    MobileHumanPose(const std::string& model_path, 
-                   const cv::Vec2f& focal_length = cv::Vec2f(1500, 1500), 
-                   const cv::Vec2f& principal_points = cv::Vec2f(1280/2, 720/2));
+    MobileHumanPose(const std::string &model_path, 
+                   const cv::Vec2f &focal_length = cv::Vec2f(1500, 1500), 
+                   const cv::Vec2f &principal_points = cv::Vec2f(1280/2, 720/2));
     
     // 重载调用运算符，方便直接调用对象进行姿态估计
-    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> operator()(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth = 1.0);
+    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> operator()(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth = 1.0);
     
     // 姿态估计主函数
     // 估计姿态 - 完整版（包含3D信息）
-    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> estimatePose(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth);
+    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> estimatePose(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth);
     
     /// @brief      
     /// @param image    Picture to be dectected
@@ -34,33 +34,33 @@ public:
     ///                 first for pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1), 
     ///                 in regard of top left of the box, unit: pixel
     ///                 second for score
-    std::tuple<cv::Mat, cv::Mat> estimatePose2d(const cv::Mat& image, const cv::Vec4i& bbox);
+    std::tuple<cv::Mat, cv::Mat> estimatePose2d(const cv::Mat &image, const cv::Vec4i &bbox);
 
     // 处理输出 - 仅计算2D姿态（更高效）
 
     /// @brief          处理输出 - 仅计算2D姿态（更高效）
-    /// @param output 
+    /// @param output   Output of MHP model
     /// @param bbox     box
     /// @return 
-    std::tuple<cv::Mat, cv::Mat> processOutput2d(const cv::Mat& output, const cv::Vec4i& bbox);
+    std::tuple<cv::Mat, cv::Mat> processOutput2d(const cv::Mat &output, const cv::Vec4i &bbox);
     
 private:
     // 初始化模型
-    void initializeModel(const std::string& model_path);
+    void initializeModel(const std::string &model_path);
     
     // 准备输入数据
-    cv::Mat prepareInput(const cv::Mat& image, const cv::Vec4i& bbox);
+    cv::Mat prepareInput(const cv::Mat &image, const cv::Vec4i &bbox);
     
     // 执行推理
-    cv::Mat inference(const cv::Mat& input_tensor);
+    cv::Mat inference(const cv::Mat &input_tensor);
     
-    // 处理输出数据
-    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> processOutput(const cv::Mat& output, float abs_depth, const cv::Vec4i& bbox);
+    // 实现不能, 菜
+    std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> processOutput(const cv::Mat &output, float abs_depth, const cv::Vec4i &bbox);
     
-    // 获取模型输入细节
+    // 获取模型输入细节, 其实信息是写死的
     void getModelInputDetails();
     
-    // 获取模型输出细节
+    // 获取模型输出细节, 其实信息是写死的
     void getModelOutputDetails();
 
 private:
@@ -69,13 +69,13 @@ private:
     
     cv::dnn::Net net;
     
-    // 输入相关参数, 从Netron获得
+    // 输入相关参数, 从Netron获得, 会被getModelInputDetails()覆写
     std::string input_name;
     int channels        = 3;
     int input_height    = 256;
     int input_width     = 256;
     
-    // 输出相关参数, 从Netron获得
+    // 输出相关参数, 从Netron获得, 会被getModelOutputDetails()覆写
     std::vector<std::string> output_names;
     int output_depth    = 672;
     int output_height   = 32;
@@ -95,8 +95,8 @@ private:
 
 // 主函数示例
 /*
-void runPoseEstimation(const std::string& pose_model_path, 
-                      const std::string& detector_model_path,
-                      const std::string& input_image_path,
-                      const std::string& output_image_path);
+void runPoseEstimation(const std::string &pose_model_path, 
+                      const std::string &detector_model_path,
+                      const std::string &input_image_path,
+                      const std::string &output_image_path);
 */

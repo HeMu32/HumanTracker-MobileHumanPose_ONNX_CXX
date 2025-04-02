@@ -30,7 +30,7 @@ void yolo_fast::drawPred(int classId, float conf, int left, int top, int right, 
 	cv::putText(frame, label, cv::Point(left, top), cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(0, 160, 0), 1, cv::LINE_AA);
 }
 
-void yolo_fast::detect(cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter)
+void yolo_fast::detect(const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter)
 {
 	boxesResult.clear();
 
@@ -102,14 +102,15 @@ void yolo_fast::detect(cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int 
 	{
 		int idx = indices[i];
 		cv::Rect box = boxes[idx];
+/*	Don't draw prediction
 		this->drawPred(classIds[idx], confidences[idx], box.x, box.y,
 			box.x + box.width, box.y + box.height, frame);
-
+*/
 		boxesResult.push_back (cv::Vec4i(box.x, box.y, box.x + box.width, box.y + box.height));
 	}
 }
 
-void yolo_fast::detect(cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult)
+void yolo_fast::detect(const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult)
 {
 	detect(frame, boxesResult, -1);
 }

@@ -9,20 +9,20 @@
 // 假设YoloV5s类已经实现
 // #include "yoloV5s.h"
 
-MobileHumanPose::MobileHumanPose(const std::string& model_path, 
-                               const cv::Vec2f& focal_length, 
-                               const cv::Vec2f& principal_points)
+MobileHumanPose::MobileHumanPose(const std::string &model_path, 
+                               const cv::Vec2f &focal_length, 
+                               const cv::Vec2f &principal_points)
     : focal_length(focal_length), principal_points(principal_points)
 {
     initializeModel(model_path);
 }
 
-std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::operator()(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth)
+std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::operator()(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth)
 {
     return estimatePose(image, bbox, abs_depth);
 }
 
-void MobileHumanPose::initializeModel(const std::string& model_path)
+void MobileHumanPose::initializeModel(const std::string &model_path)
 {
     try {
         // 使用OpenCV的DNN模块加载ONNX模型
@@ -39,13 +39,13 @@ void MobileHumanPose::initializeModel(const std::string& model_path)
         
         std::cout << "模型加载成功: " << model_path << std::endl;
     }
-    catch (const cv::Exception& e) {
+    catch (const cv::Exception &e) {
         std::cerr << "加载模型时出错: " << e.what() << std::endl;
         throw;
     }
 }
 
-std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::estimatePose(const cv::Mat& image, const cv::Vec4i& bbox, float abs_depth)
+std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::estimatePose(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth)
 {
     cv::Mat input_tensor = prepareInput(image, bbox);
     cv::Mat output = inference(input_tensor);
@@ -53,14 +53,14 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::estimatePose(con
 }
 
 // 添加2D姿态估计函数 - 更高效的版本，不计算3D信息
-std::tuple<cv::Mat, cv::Mat> MobileHumanPose::estimatePose2d(const cv::Mat& image, const cv::Vec4i& bbox)
+std::tuple<cv::Mat, cv::Mat> MobileHumanPose::estimatePose2d(const cv::Mat &image, const cv::Vec4i &bbox)
 {
     cv::Mat input_tensor = prepareInput(image, bbox);
     cv::Mat output = inference(input_tensor);
     return processOutput2d(output, bbox);
 }
 
-cv::Mat MobileHumanPose::prepareInput(const cv::Mat& image, const cv::Vec4i& bbox)
+cv::Mat MobileHumanPose::prepareInput(const cv::Mat &image, const cv::Vec4i &bbox)
 {
     // 检查边界框是否有效
     int x1 = bbox[0], y1 = bbox[1], x2 = bbox[2], y2 = bbox[3];
@@ -118,7 +118,7 @@ cv::Mat MobileHumanPose::prepareInput(const cv::Mat& image, const cv::Vec4i& bbo
     return blob;
 }
 
-cv::Mat MobileHumanPose::inference(const cv::Mat& input_tensor)
+cv::Mat MobileHumanPose::inference(const cv::Mat &input_tensor)
 {
     net.setInput(input_tensor);
     std::vector<cv::Mat> outputs;
@@ -128,7 +128,8 @@ cv::Mat MobileHumanPose::inference(const cv::Mat& input_tensor)
     return outputs[0];
 }
 
-std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(const cv::Mat& output, float abs_depth, const cv::Vec4i& bbox)
+// deprecated
+std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(const cv::Mat &output, float abs_depth, const cv::Vec4i &bbox)
 {
     // 重塑输出为热图
     int batch_size  = output.size[0];
@@ -467,7 +468,7 @@ std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> MobileHumanPose::processOutput(co
 }
 
 // 添加一个新的处理函数，专门用于2D姿态估计，不计算热图体积
-std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat& output, const cv::Vec4i& bbox)
+std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &output, const cv::Vec4i &bbox)
 {
     // 重塑输出为热图
     int batch_size  = output.size[0];
@@ -664,7 +665,7 @@ void MobileHumanPose::getModelInputDetails()
 /*
     if (net.getLayerId(input_name) >= 0) {
         // 获取输入层的blob
-        const auto& blob = net.getLayer(net.getLayerId(input_name))->blobs[0];
+        const auto &blob = net.getLayer(net.getLayerId(input_name))->blobs[0];
         // 将MatSize转换为vector<int>
         for (int i = 0; i < blob.dims; i++) {
             input_shape.push_back(blob.size[i]);
@@ -697,10 +698,10 @@ void MobileHumanPose::getModelOutputDetails()
 
 /*
 // 主函数示例实现
-void runPoseEstimation(const std::string& pose_model_path, 
-                      const std::string& detector_model_path,
-                      const std::string& input_image_path,
-                      const std::string& output_image_path)
+void runPoseEstimation(const std::string &pose_model_path, 
+                      const std::string &detector_model_path,
+                      const std::string &input_image_path,
+                      const std::string &output_image_path)
 {
     // 相机参数
     cv::Vec2f focal_length(1500, 1500);
@@ -732,7 +733,7 @@ void runPoseEstimation(const std::string& pose_model_path,
     
     // 模拟深度
     std::vector<float> depths;
-    for (const auto& box : boxes) {
+    for (const auto &box : boxes) {
         int width = box[2] - box[0];
         int height = box[3] - box[1];
         float area = width * height;

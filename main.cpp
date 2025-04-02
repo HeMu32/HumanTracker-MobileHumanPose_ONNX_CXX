@@ -103,7 +103,7 @@ int main()
     //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(200, 40, 360, 540)};
     //cv::Mat					image	= cv::imread ("1.png");
 
-    // std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(185, 296, 800, 1200)};
+    //std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(185, 296, 800, 1200)};
     //std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(200, 320, 490, 1187)};
     //cv::Mat					image	= cv::imread ("2.jpg");
     
@@ -203,21 +203,6 @@ int main()
 */
     }
     
-    // 绘制热图
-    heatmap_viz_img = utils.drawHeatmap(heatmap_viz_img, img_heatmap);
-    
-    
-    // 合并图像
-    cv::Mat combined_img;
-    cv::hconcat(std::vector<cv::Mat>{heatmap_viz_img, pose_img}, combined_img);
-    
-    // 保存结果
-    cv::imwrite(output_image_path, combined_img);
-    
-    // 显示结果
-    cv::namedWindow("Estimated pose", cv::WINDOW_NORMAL);
-    cv::imshow("Estimated pose", combined_img);
-    cv::waitKey(0);
 }
 
 /*
