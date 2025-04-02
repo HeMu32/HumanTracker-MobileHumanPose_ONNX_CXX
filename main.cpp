@@ -1,6 +1,7 @@
 ﻿#include <fstream>
 #include <sstream>
 #include <iostream>
+#include <chrono>
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -93,10 +94,59 @@ int main()
 }
 */
 
+MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
+yolo_fast       yolo_model("yolofastv2.onnx", 0.3, 0.3, 0.4);
+
+void DetectExample (char *szImgPath)
+{
+    std::vector<float> 		scores	= {99};
+
+    std::vector<cv::Vec4i>  boxes;
+    cv::Mat					image	= cv::imread (szImgPath);
+
+
+    // 添加计时功能
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    yolo_model.detect (image, boxes, 0);
+
+    auto dec_time = std::chrono::high_resolution_clock::now();
+    auto durationDec = std::chrono::duration_cast<std::chrono::milliseconds>(dec_time - start_time);
+    printf ("检测时间: %ld毫秒  ", durationDec.count());
+    // 如果没有检测到人体，退出
+    if (boxes.empty()) 
+    {
+        std::cout << "未检测到人体" << std::endl;
+        return;
+    }
+    
+
+    start_time = std::chrono::high_resolution_clock::now();
+    
+    // 处理每个检测到的人体
+    for (size_t i = 0; i < boxes.size(); i++) 
+    {
+        // 估计姿态
+        cv::Mat pose_2d, pose_3d, person_heatmap, joint_scores;
+        
+        // 使用更高效的2D姿态估计方法
+        cv::Mat pose_2d_fast, joint_scores_fast;
+        std::tie(pose_2d_fast, joint_scores_fast) = 
+            pose_estimator.estimatePose2d(image, boxes[i]);
+
+    }
+    
+    // 计算并输出执行时间
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    printf ("骨骼时间: %ld毫秒\n", duration.count());
+}
+
+
 int main()
 {
-	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
-	yolo_fast       yolo_model("yolofastv2.onnx", 0.3, 0.3, 0.4);
+	//MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
+	//yolo_fast       yolo_model("yolofastv2.onnx", 0.3, 0.3, 0.4);
 	// 检测人体
     std::vector<float> 		scores	= {99};
 /*
@@ -112,9 +162,24 @@ int main()
 */
 	std::string				output_image_path = "dec.jpg"; 
     std::vector<cv::Vec4i>  boxes;
-    cv::Mat					image	= cv::imread ("4.jpg");
+    cv::Mat					image	= cv::imread ("3.jpg");
+
+    DetectExample ("1.png");
+    DetectExample ("2.jpg");
+    DetectExample ("3.jpg");
+    DetectExample ("4.jpg");
+    DetectExample ("5.jpg");
+    DetectExample ("dec.jpg");
+    DetectExample ("hm.jpg");
+    
 
 
+    return 0;
+
+
+    // 添加计时功能
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
     yolo_model.detect (image, boxes, 0);
 
     // 如果没有检测到人体，退出
@@ -127,12 +192,6 @@ int main()
     // 创建结果图像
     cv::Mat pose_img = image.clone();
     
-    // 姿态估计工具
-    PoseEstimationUtils utils;
-    
-    // 存储3D姿态
-    std::vector<cv::Mat> pose_3d_list;
-    
     // 处理每个检测到的人体
     for (size_t i = 0; i < boxes.size(); i++) 
     {
@@ -143,7 +202,7 @@ int main()
         cv::Mat pose_2d_fast, joint_scores_fast;
         std::tie(pose_2d_fast, joint_scores_fast) = 
             pose_estimator.estimatePose2d(image, boxes[i]);
-            
+/*
         // 创建裁剪后的图像
         cv::Rect roi(boxes[i][0], boxes[i][1], boxes[i][2] - boxes[i][0], boxes[i][3] - boxes[i][1]);
         cv::Mat cropped_image = image(roi).clone();
@@ -175,7 +234,7 @@ int main()
         cv::imshow ("dec", cropped_pose_img);
         cv::waitKey (0);
         true;
-        
+*/
 /*
         // 绘制骨架
         pose_img = utils.drawSkeleton(pose_img, pose_2d, joint_scores);
@@ -189,6 +248,11 @@ int main()
         pose_3d_list.push_back(pose_3d);
 */
     }
+    
+    // 计算并输出执行时间
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    std::cout << "执行时间: " << duration.count() << " 毫秒" << std::endl;
     
 }
 

@@ -61,25 +61,26 @@ void yolo_fast::detect(const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult
 				double max_class_socre;
 				// Get the value and location of the maximum score
 				cv::minMaxLoc(scores, 0, &max_class_socre, 0, &classIdPoint);
-				for (q = 0; q < this->anchor_num; q++)    ///anchor
+				if (classIdPoint.x == filter)
 				{
-					const float anchor_w = this->anchors[n][q * 2];
-					const float anchor_h = this->anchors[n][q * 2 + 1];
-					float box_score = pdata[4 * this->anchor_num + q];
-					if (box_score > this->objThreshold && max_class_socre > this->confThreshold)
+					for (q = 0; q < this->anchor_num; q++)    ///anchor
 					{
-						float cx = (pdata[4 * q] * 2.f - 0.5f + j) * this->stride[n];  ///cx
-						float cy = (pdata[4 * q + 1] * 2.f - 0.5f + i) * this->stride[n];   ///cy
-						float w = powf(pdata[4 * q + 2] * 2.f, 2.f) * anchor_w;   ///w
-						float h = powf(pdata[4 * q + 3] * 2.f, 2.f) * anchor_h;  ///h
-
-						int left = (cx - 0.5*w)*ratiow;
-						int top = (cy - 0.5*h)*ratioh;   ///���껹ԭ��ԭͼ��
-
-
-
-						if (classIdPoint.x == filter)
+						const float anchor_w = this->anchors[n][q * 2];
+						const float anchor_h = this->anchors[n][q * 2 + 1];
+						float box_score = pdata[4 * this->anchor_num + q];
+						if (box_score > this->objThreshold && max_class_socre > this->confThreshold)
 						{
+							float cx = (pdata[4 * q] * 2.f - 0.5f + j) * this->stride[n];  ///cx
+							float cy = (pdata[4 * q + 1] * 2.f - 0.5f + i) * this->stride[n];   ///cy
+							float w = powf(pdata[4 * q + 2] * 2.f, 2.f) * anchor_w;   ///w
+							float h = powf(pdata[4 * q + 3] * 2.f, 2.f) * anchor_h;  ///h
+
+							int left = (cx - 0.5*w)*ratiow;
+							int top = (cy - 0.5*h)*ratioh;   ///���껹ԭ��ԭͼ��
+
+
+
+							
 							classIds.push_back(classIdPoint.x);
 							confidences.push_back(box_score * max_class_socre);
 							boxes.push_back(cv::Rect(left, top, (int)(w*ratiow), (int)(h*ratioh)));

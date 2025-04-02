@@ -18,7 +18,10 @@ public:
 	/// @param frame 		Picture
 	/// @param boxesResult 	Detected boxes, xyxy
 	/// @param filter 		Coco classification tag, 0 for human; or -1 for no filter.
-	void detect (const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter);
+	void detect (const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter = -1);
+	/// @brief 				Detect via yolo
+	/// @param frame 		Picture
+	/// @param boxesResult 	Detected boxes, xyxy
 	void detect (const cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult);
 
 private:

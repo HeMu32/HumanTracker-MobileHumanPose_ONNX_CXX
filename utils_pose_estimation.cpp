@@ -17,7 +17,8 @@ PoseEstimationUtils::PoseEstimationUtils()
     
     // 初始化颜色映射 - 使用彩虹色谱
     // 在C++中我们使用固定的颜色集合来替代Python中的cmap
-    colors_cv = {
+    colors_cv = 
+    {
         cv::Scalar(255, 0, 0), cv::Scalar(255, 63, 0), cv::Scalar(255, 127, 0), 
         cv::Scalar(255, 191, 0), cv::Scalar(255, 255, 0), cv::Scalar(191, 255, 0), 
         cv::Scalar(127, 255, 0), cv::Scalar(63, 255, 0), cv::Scalar(0, 255, 0), 

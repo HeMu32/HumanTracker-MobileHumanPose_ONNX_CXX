@@ -61,7 +61,8 @@ cv::Mat MobileHumanPose::prepareInput(const cv::Mat &image, const cv::Vec4i &bbo
 {
     // 检查边界框是否有效
     int x1 = bbox[0], y1 = bbox[1], x2 = bbox[2], y2 = bbox[3];
-    if (x1 >= x2 || y1 >= y2 || x1 < 0 || y1 < 0 || x2 > image.cols || y2 > image.rows) {
+    if (x1 >= x2 || y1 >= y2 || x1 < 0 || y1 < 0 || x2 > image.cols || y2 > image.rows) 
+    {
         std::cout << "警告：无效的边界框 [" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << "]，将进行调整" << std::endl;
         x1 = std::max(0, x1);
         y1 = std::max(0, y1);
@@ -80,23 +81,17 @@ cv::Mat MobileHumanPose::prepareInput(const cv::Mat &image, const cv::Vec4i &bbo
     cv::Mat img = utils.cropImage(image, adjusted_bbox);
     
     // 检查裁剪后的图像是否为空
-    if (img.empty() || img.rows == 0 || img.cols == 0) {
+    if (img.empty() || img.rows == 0 || img.cols == 0) 
+    {
         std::cout << "警告：裁剪后的图像为空，使用原始图像" << std::endl;
         img = image.clone();
     }
     
-    // 转换颜色空间
-    cv::Mat rgb_img;
-    cv::cvtColor(img, rgb_img, cv::COLOR_BGR2RGB);
-    
-    img_height = rgb_img.rows;
-    img_width = rgb_img.cols;
-    img_channels = rgb_img.channels();
+    img_height   = img.rows;
+    img_width    = img.cols;
+    img_channels = img.channels();
     principal_points = cv::Vec2f(img_width/2.0f, img_height/2.0f);
     
-    // 调整图像大小
-    cv::Mat resized_img;
-    cv::resize(rgb_img, resized_img, cv::Size(input_width, input_height), 1, 2);
 /*
     cv::imshow ("woc", resized_img);
     cv::waitKey(0);
@@ -108,8 +103,8 @@ cv::Mat MobileHumanPose::prepareInput(const cv::Mat &image, const cv::Vec4i &bbo
                                          cv::Scalar(0, 0, 0), true, false);
 */
     // 创建blob - 尝试不同的预处理参数
-    cv::Mat blob = cv::dnn::blobFromImage(resized_img, 1.0/255.0, 
-                                         cv::Size(256, 256),
+    cv::Mat blob = cv::dnn::blobFromImage(img, 1.0/255.0, 
+                                         cv::Size(input_width, input_height),
                                          cv::Scalar(0.5, 0.5, 0.5), true, false);
     
     return blob;
