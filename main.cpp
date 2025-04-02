@@ -96,6 +96,7 @@ int main()
 int main()
 {
 	MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
+	yolo_fast       yolo_model("yolofastv2.onnx", 0.3, 0.3, 0.4);
 	// 检测人体
     std::vector<float> 		scores	= {99};
 
@@ -103,16 +104,18 @@ int main()
     //cv::Mat					image	= cv::imread ("1.png");
 
     // std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(185, 296, 800, 1200)};
-    std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(200, 320, 490, 1187)};
-    cv::Mat					image	= cv::imread ("2.jpg");
-
+    //std::vector<cv::Vec4i>  boxes   = {cv::Vec4i(200, 320, 490, 1187)};
+    //cv::Mat					image	= cv::imread ("2.jpg");
     
     //std::vector<cv::Vec4i>  boxes = {cv::Vec4i(150, 341, 853, 1190)};
     //cv::Mat					image	= cv::imread ("3.jpg");
 
+	std::string				output_image_path = "dec.jpg"; 
+    std::vector<cv::Vec4i>  boxes;
+    cv::Mat					image	= cv::imread ("3.jpg");
 
 
-	std::string				output_image_path = "dec.jpg";
+    yolo_model.detect (image, boxes, 0);
 
     // 如果没有检测到人体，退出
     if (boxes.empty()) {
@@ -181,7 +184,7 @@ int main()
                             0.5, cv::Scalar(0, 0, 255), 1);
             }
         }
-        cv::imwrite ("dec2.jpg", cropped_pose_img);
+        cv::imwrite ("dec3.jpg", cropped_pose_img);
         cv::imshow ("dec", cropped_pose_img);
         cv::waitKey (0);
         true;

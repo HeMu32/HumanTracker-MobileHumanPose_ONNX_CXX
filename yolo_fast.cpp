@@ -30,8 +30,10 @@ void yolo_fast::drawPred(int classId, float conf, int left, int top, int right, 
 	cv::putText(frame, label, cv::Point(left, top), cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(0, 160, 0), 1, cv::LINE_AA);
 }
 
-void yolo_fast::detect(cv::Mat& frame)
+void yolo_fast::detect(cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult, int filter)
 {
+	boxesResult.clear();
+
 	cv::Mat blob;
 	cv::dnn::blobFromImage(frame, blob, 1 / 255.0, cv::Size(this->inpWidth, this->inpHeight));
 	this->net.setInput(blob);
@@ -74,9 +76,14 @@ void yolo_fast::detect(cv::Mat& frame)
 						int left = (cx - 0.5*w)*ratiow;
 						int top = (cy - 0.5*h)*ratioh;   ///���껹ԭ��ԭͼ��
 
-						classIds.push_back(classIdPoint.x);
-						confidences.push_back(box_score * max_class_socre);
-						boxes.push_back(cv::Rect(left, top, (int)(w*ratiow), (int)(h*ratioh)));
+
+
+						if (classIdPoint.x == filter)
+						{
+							classIds.push_back(classIdPoint.x);
+							confidences.push_back(box_score * max_class_socre);
+							boxes.push_back(cv::Rect(left, top, (int)(w*ratiow), (int)(h*ratioh)));
+						}
 					}
 				}
 				row_ind++;
@@ -97,5 +104,12 @@ void yolo_fast::detect(cv::Mat& frame)
 		cv::Rect box = boxes[idx];
 		this->drawPred(classIds[idx], confidences[idx], box.x, box.y,
 			box.x + box.width, box.y + box.height, frame);
+
+		boxesResult.push_back (cv::Vec4i(box.x, box.y, box.x + box.width, box.y + box.height));
 	}
+}
+
+void yolo_fast::detect(cv::Mat &frame, std::vector<cv::Vec4i> &boxesResult)
+{
+	detect(frame, boxesResult, -1);
 }
