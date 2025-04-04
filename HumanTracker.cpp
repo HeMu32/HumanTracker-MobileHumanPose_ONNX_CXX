@@ -1,7 +1,7 @@
-#include "PoseDetector.h"
+#include "HumanTracker.h"
 #include <iostream>
 
-PoseDetector::PoseDetector(const std::string& poseModelPath, const std::string& yoloModelPath)
+HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath)
     : pose_estimator(poseModelPath)
     , yolo_model(yoloModelPath, 0.3, 0.3, 0.4)
     , detection_done(false)
@@ -11,7 +11,7 @@ PoseDetector::PoseDetector(const std::string& poseModelPath, const std::string& 
     // 初始化完成
 }
 
-PoseDetector::~PoseDetector()
+HumanTracker::~HumanTracker()
 {
     // 停止线程
     thread_running = false;
@@ -31,16 +31,16 @@ PoseDetector::~PoseDetector()
     }
 }
 
-void PoseDetector::initDetectionThread()
+void HumanTracker::initDetectionThread()
 {
     if (!thread_running)
     {
         thread_running = true;
-        yolo_thread = new std::thread(&PoseDetector::yoloDetectionThread, this);
+        yolo_thread = new std::thread(&HumanTracker::yoloDetectionThread, this);
     }
 }
 
-void PoseDetector::yoloDetectionThread()
+void HumanTracker::yoloDetectionThread()
 {
     while (thread_running)
     {
@@ -65,7 +65,7 @@ void PoseDetector::yoloDetectionThread()
     }
 }
 
-void PoseDetector::processImage(const cv::Mat& image)
+void HumanTracker::processImage(const cv::Mat& image)
 {
     if (image.empty())
     {

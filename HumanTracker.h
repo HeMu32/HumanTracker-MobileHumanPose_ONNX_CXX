@@ -12,14 +12,14 @@
 #include "yolo_fast.h"
 #include "mobileHumanPose.h"
 
-class PoseDetector
+class HumanTracker
 {
 public:
     // 构造函数
-    PoseDetector(const std::string& poseModelPath, const std::string& yoloModelPath);
+    HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath);
     
     // 析构函数
-    ~PoseDetector();
+    ~HumanTracker();
     
     // 初始化检测线程
     void initDetectionThread();

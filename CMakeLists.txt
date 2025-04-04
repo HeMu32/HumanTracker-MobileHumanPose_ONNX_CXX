@@ -20,7 +20,7 @@ add_executable (yolo_detector
                 yolo_fast.cpp 
                 mobileHumanPose.cpp 
                 utils_pose_estimation.cpp
-                PoseDetector.cpp
+                HumanTracker.cpp
 )
 
 # 链接库

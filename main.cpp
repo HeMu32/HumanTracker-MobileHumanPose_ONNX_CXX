@@ -10,12 +10,12 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
-#include "PoseDetector.h"
+#include "HumanTracker.h"
 
 int main()
 {
     // 创建PoseDetector实例
-    PoseDetector detector("mobile_human_pose_working_well_256x256.onnx", "yolofastv2.onnx");
+    HumanTracker detector("mobile_human_pose_working_well_256x256.onnx", "yolofastv2.onnx");
     
     // 初始化检测线程
     detector.initDetectionThread();
