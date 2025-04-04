@@ -15,11 +15,12 @@ find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # 添加可执行文件，包含新增的姿态估计相关文件
-add_executable(yolo_detector 
-    main.cpp 
-    yolo_fast.cpp 
-    mobileHumanPose.cpp 
-    utils_pose_estimation.cpp
+add_executable (yolo_detector 
+                main.cpp 
+                yolo_fast.cpp 
+                mobileHumanPose.cpp 
+                utils_pose_estimation.cpp
+                PoseDetector.cpp
 )
 
 # 链接库
