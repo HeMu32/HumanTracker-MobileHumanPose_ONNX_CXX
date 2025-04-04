@@ -37,6 +37,10 @@ private:
     // Momentumn of human detection box
     int momentum[2] = {0, 0};
 
+    // 光流追踪相关参数
+    std::vector<uchar> status;
+    std::vector<float> err;
+
     // Indicator of "no frame has yet been detected", thus no info
     // of previous frame available. Initialized to be true.
     bool flagFirstFrame = true;
@@ -48,6 +52,8 @@ private:
     // This center is the weighted center of the person, not the center of the box!!
     int         xPrevCenter;
     int         yPrevCenter;
+    // Indication box for previous picture, xyxy, for visualization and optical flow tracking
+    cv::Vec4i   PrevIndiBox;
     
     // Virables for sync. with yoloDetectionThread()
     std::mutex mtxYolo;
@@ -60,6 +66,18 @@ private:
     
     // YOLO检测线程函数
     void yoloDetectionThread();
+    
+    private:
+        // 计算光流
+        std::pair<int, int> calculateOpticalFlow(const cv::Mat& prevGray, const cv::Mat& currGray, 
+                                                const cv::Vec4i& box, const cv::Mat& visualImage);
+        
+        // 处理光流结果
+        std::pair<int, int> processOpticalFlowResults(
+            const std::vector<cv::Point2f>& prevPoints, 
+            const std::vector<cv::Point2f>& nextPoints,
+            const std::vector<uchar>& status,
+            const cv::Mat& visualImage);
 };
 
 #endif // POSE_DETECTOR_H
