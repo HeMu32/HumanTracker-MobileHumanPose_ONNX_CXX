@@ -66,6 +66,171 @@ void HumanTracker::yoloDetectionThread()
     }
 }
 
+std::pair<int, int> HumanTracker::calculateOpticalFlow(const cv::Mat& prevGray, const cv::Mat& currGray, 
+                                                      const cv::Vec4i& box, const cv::Mat& visualImage)
+{
+    // 每次都在前一帧的人体中心周围生成新的追踪点
+    std::vector<cv::Point2f> prevTrackPoints;
+    std::vector<cv::Point2f> nextTrackPoints;
+    std::vector<uchar> status;
+    std::vector<float> err;
+    
+    // 添加更多的点以增加追踪精度（在框内均匀分布）
+    int numPointsX = 5; // 水平方向的点数
+    int numPointsY = 12; // 垂直方向的点数
+    
+    for (int y = 0; y < numPointsY; y++) 
+    {
+        for (int x = 0; x < numPointsX; x++) 
+        {
+            float px = box[0] + (box[2] - box[0]) * x / (numPointsX - 1);
+            float py = box[1] + (box[3] - box[1]) * y / (numPointsY - 1);
+            prevTrackPoints.push_back(cv::Point2f(px, py));
+        }
+    }
+    
+    // 如果有追踪点，计算光流
+    if (prevTrackPoints.empty())
+    {
+        return {0, 0}; // 没有追踪点，返回零位移
+    }
+    
+    // 计算窗口大小，确保大于2x2
+    int winWidth = std::max(15, (box[2] - box[0]) / 8);
+    int winHeight = std::max(15, (box[3] - box[1]) / 8);
+    
+    // 使用Lucas-Kanade方法计算光流
+    cv::calcOpticalFlowPyrLK(
+        prevGray, 
+        currGray,
+        prevTrackPoints, 
+        nextTrackPoints,
+        status, 
+        err,
+        cv::Size(winWidth, winHeight), 
+        4,  // 增加金字塔层数以处理更大的运动
+        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.001),  // 提高精度
+        cv::OPTFLOW_LK_GET_MIN_EIGENVALS
+    );
+    
+    return processOpticalFlowResults(prevTrackPoints, nextTrackPoints, status, visualImage);
+}
+
+std::pair<int, int> HumanTracker::processOpticalFlowResults(
+    const std::vector<cv::Point2f>& prevPoints, 
+    const std::vector<cv::Point2f>& nextPoints,
+    const std::vector<uchar>& status,
+    const cv::Mat& visualImage)
+{
+    // 计算有效光流的平均位移，并过滤异常值
+    int validCount = 0;
+    float avgDx = 0, avgDy = 0;
+    std::vector<float> dxValues, dyValues;
+    
+    // 第一遍：收集所有有效的位移值
+    for (size_t i = 0; i < status.size(); i++)
+    {
+        if (status[i])
+        {
+            float dx = nextPoints[i].x - prevPoints[i].x;
+            float dy = nextPoints[i].y - prevPoints[i].y;
+            dxValues.push_back(dx);
+            dyValues.push_back(dy);
+        }
+    }
+    
+    // 计算中位数和标准差，用于过滤异常值
+    float medianDx = 0, medianDy = 0;
+    float stdDevDx = 0, stdDevDy = 0;
+    
+    if (!dxValues.empty())
+    {
+        // 计算中位数
+        size_t n = dxValues.size() / 2;
+        std::nth_element(dxValues.begin(), dxValues.begin() + n, dxValues.end());
+        medianDx = dxValues[n];
+        
+        std::nth_element(dyValues.begin(), dyValues.begin() + n, dyValues.end());
+        medianDy = dyValues[n];
+        
+        // 计算标准差
+        for (float dx : dxValues) stdDevDx += (dx - medianDx) * (dx - medianDx);
+        for (float dy : dyValues) stdDevDy += (dy - medianDy) * (dy - medianDy);
+        
+        stdDevDx = std::sqrt(stdDevDx / dxValues.size());
+        stdDevDy = std::sqrt(stdDevDy / dyValues.size());
+    }
+    
+    // 创建可视化图像用于调试
+    cv::Mat flowVis;
+    if (!visualImage.empty())
+    {
+        flowVis = visualImage.clone();
+    }
+    
+    // 第二遍：过滤异常值并计算平均值
+    std::vector<uchar> filteredStatus = status;
+    for (size_t i = 0; i < status.size(); i++)
+    {
+        if (status[i])
+        {
+            float dx = nextPoints[i].x - prevPoints[i].x;
+            float dy = nextPoints[i].y - prevPoints[i].y;
+            
+            // 过滤异常值（超过中位数±2个标准差的值）
+            if (std::abs(dx - medianDx) <= 2 * stdDevDx && 
+                std::abs(dy - medianDy) <= 2 * stdDevDy)
+            {
+                avgDx += dx;
+                avgDy += dy;
+                validCount++;
+            }
+            else
+            {
+                // 标记为无效点
+                filteredStatus[i] = 0;
+            }
+        }
+    }
+
+    int xFlow = 0, yFlow = 0;
+    if (validCount > 0) 
+    {
+        xFlow = avgDx / validCount / 5;     // 多除以一个经验值
+        yFlow = avgDy / validCount / 5;
+    }
+#ifdef _DEBUG_OPTIFLOW
+    // 可视化光流结果
+    if (!visualImage.empty())
+    {
+        // 绘制所有追踪点
+        for (size_t i = 0; i < prevPoints.size(); i++)
+        {
+            if (filteredStatus[i])
+            {
+                // 有效点用绿色线表示
+                cv::line(flowVis, prevPoints[i], nextPoints[i], 
+                         cv::Scalar(0, 255, 0), 1);
+                cv::circle(flowVis, nextPoints[i], 2, 
+                           cv::Scalar(0, 255, 0), -1);
+            }
+            else if (i < status.size())
+            {
+                // 无效点用红色点表示
+                cv::circle(flowVis, prevPoints[i], 2, 
+                           cv::Scalar(0, 0, 255), -1);
+            }
+        }
+        
+        // 显示光流追踪结果
+        cv::resize(flowVis, flowVis, cv::Size(), 0.5, 0.5);
+        cv::imshow("Optical Flow Tracking", flowVis);
+        cv::waitKey(1);
+    }
+#endif
+    return {xFlow, yFlow};
+}
+
 int HumanTracker::estimate(const cv::Mat& image)
 {
     int ret = 0;
@@ -116,189 +281,11 @@ int HumanTracker::estimate(const cv::Mat& image)
         // 转换为灰度图
         cv::cvtColor(PrevFrame, prevGray, cv::COLOR_BGR2GRAY);
         cv::cvtColor(image, currGray, cv::COLOR_BGR2GRAY);
-/*      Dude impossible to get that many points
-        // 如果没有足够的追踪点，在前一帧的人体中心周围生成新的追踪点
-        if (prevPoints.size() < MAX_POINTS / 2)
-        {
-            prevPoints.clear();
-            // 在人体中心周围的区域内生成随机点
-            for (int i = 0; i < MAX_POINTS; i++)
-            {
-                // 生成随机偏移，范围为[-FLOW_RADIUS, FLOW_RADIUS]
-                int offsetX = (rand() % (2 * FLOW_RADIUS)) - FLOW_RADIUS;
-                int offsetY = (rand() % (2 * FLOW_RADIUS)) - FLOW_RADIUS;
-                
-                // 计算点的坐标
-                int x = xPrevCenter + offsetX;
-                int y = yPrevCenter + offsetY;
-                
-                // 确保点在图像范围内
-                if (x >= 0 && x < PrevFrame.cols && y >= 0 && y < PrevFrame.rows)
-                {
-                    prevPoints.push_back(cv::Point2f(x, y));
-                }
-            }
-        }
-*/        
-        // 每次都在前一帧的人体中心周围生成新的追踪点
-        std::vector<cv::Point2f> prevTrackPoints;
-        std::vector<cv::Point2f> nextTrackPoints;
-        prevTrackPoints.clear();
-        nextTrackPoints.clear();
-        
-        // 使用PrevIndiBox中的点作为追踪点
-        // 获取框的四个角点
-        prevTrackPoints.push_back(cv::Point2f(PrevIndiBox[0], PrevIndiBox[1])); // 左上
-        prevTrackPoints.push_back(cv::Point2f(PrevIndiBox[2], PrevIndiBox[1])); // 右上
-        prevTrackPoints.push_back(cv::Point2f(PrevIndiBox[0], PrevIndiBox[3])); // 左下
-        prevTrackPoints.push_back(cv::Point2f(PrevIndiBox[2], PrevIndiBox[3])); // 右下
-        
-        // 添加框的中点
-        prevTrackPoints.push_back(cv::Point2f((PrevIndiBox[0] + PrevIndiBox[2]) / 2, PrevIndiBox[1])); // 上边中点
-        prevTrackPoints.push_back(cv::Point2f((PrevIndiBox[0] + PrevIndiBox[2]) / 2, PrevIndiBox[3])); // 下边中点
-        prevTrackPoints.push_back(cv::Point2f(PrevIndiBox[0], (PrevIndiBox[1] + PrevIndiBox[3]) / 2)); // 左边中点
-        prevTrackPoints.push_back(cv::Point2f(PrevIndiBox[2], (PrevIndiBox[1] + PrevIndiBox[3]) / 2)); // 右边中点
-        
-        // 添加框的中心点
-        prevTrackPoints.push_back(cv::Point2f((PrevIndiBox[0] + PrevIndiBox[2]) / 2, 
-                                             (PrevIndiBox[1] + PrevIndiBox[3]) / 2)); // 中心点
-        
-        // 添加更多的点以增加追踪精度（在框内均匀分布）
-        int numPointsX = 5; // 水平方向的点数
-        int numPointsY = 12; // 垂直方向的点数
-        
-        for (int y = 0; y < numPointsY; y++) 
-        {
-            for (int x = 0; x < numPointsX; x++) 
-            {
-                float px = PrevIndiBox[0] + (PrevIndiBox[2] - PrevIndiBox[0]) * x / (numPointsX - 1);
-                float py = PrevIndiBox[1] + (PrevIndiBox[3] - PrevIndiBox[1]) * y / (numPointsY - 1);
-                prevTrackPoints.push_back(cv::Point2f(px, py));
-            }
-        }
-        
-        // 如果有追踪点，计算光流
-        if (!prevTrackPoints.empty())
-        {
-            // 计算窗口大小，确保大于2x2
-            int winWidth = std::max(4, (PrevIndiBox[2] - PrevIndiBox[0]) / 4);
-            int winHeight = std::max(4, (PrevIndiBox[3] - PrevIndiBox[1]) / 4);
-            
-            // 使用Lucas-Kanade方法计算光流，优化参数
-            cv::calcOpticalFlowPyrLK(
-                prevGray, 
-                currGray,
-                prevTrackPoints, 
-                nextTrackPoints,
-                status, 
-                err,
-                cv::Size(winWidth, winHeight), 
-                4,  // 增加金字塔层数以处理更大的运动
-                cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.001),  // 提高精度
-                cv::OPTFLOW_LK_GET_MIN_EIGENVALS
-            );
-            
-            // 计算有效光流的平均位移，并过滤异常值
-            int validCount = 0;
-            float avgDx = 0, avgDy = 0;
-            std::vector<float> dxValues, dyValues;
-            
-            // 第一遍：收集所有有效的位移值
-            for (size_t i = 0; i < status.size(); i++)
-            {
-                if (status[i])
-                {
-                    float dx = nextTrackPoints[i].x - prevTrackPoints[i].x;
-                    float dy = nextTrackPoints[i].y - prevTrackPoints[i].y;
-                    dxValues.push_back(dx);
-                    dyValues.push_back(dy);
-                }
-            }
-            
-            // 计算中位数和标准差，用于过滤异常值
-            float medianDx = 0, medianDy = 0;
-            float stdDevDx = 0, stdDevDy = 0;
-            
-            if (!dxValues.empty())
-            {
-                // 计算中位数
-                size_t n = dxValues.size() / 2;
-                std::nth_element(dxValues.begin(), dxValues.begin() + n, dxValues.end());
-                medianDx = dxValues[n];
-                
-                std::nth_element(dyValues.begin(), dyValues.begin() + n, dyValues.end());
-                medianDy = dyValues[n];
-                
-                // 计算标准差
-                for (float dx : dxValues) stdDevDx += (dx - medianDx) * (dx - medianDx);
-                for (float dy : dyValues) stdDevDy += (dy - medianDy) * (dy - medianDy);
-                
-                stdDevDx = std::sqrt(stdDevDx / dxValues.size());
-                stdDevDy = std::sqrt(stdDevDy / dyValues.size());
-            }
-            
-            // 第二遍：过滤异常值并计算平均值
-            for (size_t i = 0; i < status.size(); i++)
-            {
-                if (status[i])
-                {
-                    float dx = nextTrackPoints[i].x - prevTrackPoints[i].x;
-                    float dy = nextTrackPoints[i].y - prevTrackPoints[i].y;
-                    
-                    // 过滤异常值（超过中位数±2个标准差的值）
-                    if (std::abs(dx - medianDx) <= 2 * stdDevDx && 
-                        std::abs(dy - medianDy) <= 2 * stdDevDy)
-                    {
-                        avgDx += dx;
-                        avgDy += dy;
-                        validCount++;
-                    }
-                    else
-                    {
-                        // 标记为无效点
-                        status[i] = 0;
-                    }
-                }
-            }
-
-            if (validCount > 0) 
-            {
-                xOptiFlow = avgDx / validCount / 5;     // 多除以一个经验值
-                yOptiFlow = avgDy / validCount / 5;
-            } else 
-            {
-                xOptiFlow = 0;
-                yOptiFlow = 0;
-            }
-            
-            // 创建可视化图像用于调试
-            cv::Mat flowVis = image.clone();
-            
-            // 绘制所有追踪点
-            for (size_t i = 0; i < prevTrackPoints.size(); i++)
-            {
-                if (status[i])
-                {
-                    // 有效点用绿色线表示
-                    cv::line(flowVis, prevTrackPoints[i], nextTrackPoints[i], 
-                             cv::Scalar(0, 255, 0), 1);
-                    cv::circle(flowVis, nextTrackPoints[i], 2, 
-                               cv::Scalar(0, 255, 0), -1);
-                }
-                else if (i < status.size())
-                {
-                    // 无效点用红色点表示
-                    cv::circle(flowVis, prevTrackPoints[i], 2, 
-                               cv::Scalar(0, 0, 255), -1);
-                }
-            }
-            
-            // 显示光流追踪结果
-            cv::resize(flowVis, flowVis, cv::Size(), 0.5, 0.5);
-            cv::imshow("Optical Flow Tracking", flowVis);
-            cv::waitKey(1);
-        }
+     
+        // 计算光流并获取结果
+        std::tie(xOptiFlow, yOptiFlow) = calculateOpticalFlow(prevGray, currGray, PrevIndiBox, image);
     }
+
     if (boxes.size() > 1)
     {
         /// @todo Process tracking of boxex here
