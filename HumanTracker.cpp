@@ -78,7 +78,10 @@ int HumanTracker::estimate(const cv::Mat& image)
         return ret;
     }
     
-    std::vector<cv::Vec4i> boxes;
+    std::vector<cv::Vec4i> boxes;   // Bound box of detected people by Yolo
+    cv::Vec4i indicationBox;        // For visualization, not the bound box by yolo.
+    int xCenter;                    // Weighted center of detected person
+    int yCenter;                    // Weighted center of detected person
     
     // 添加计时功能
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -123,9 +126,6 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
     
     start_time = std::chrono::high_resolution_clock::now();
-
-    int xCenter;    // Weighted center of detected person
-    int yCenter;    // Weighted center of detected person
     
     // 处理每个检测到的人体
     for (size_t i = 0; i < boxes.size(); i++) 
@@ -162,13 +162,12 @@ int HumanTracker::estimate(const cv::Mat& image)
         xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
         yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
 
-        cv::Vec4i indicationBox;    // Indication box is not bound box by yolo; this is for visualization.
         indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
         indicationBox[1] = yHead;
         indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
         indicationBox[3] = yPelvis;
 
-        // 在原始图像上绘制指定关节点(9,11,19,20)
+        // Visualization
         cv::Mat dect_img = image.clone();
 /*
         // Draw head
@@ -184,16 +183,16 @@ int HumanTracker::estimate(const cv::Mat& image)
         cv::putText (dect_img, "Pelvis", cv::Point(xPelvis + 5, yPelvis - 5), cv::FONT_HERSHEY_SIMPLEX, 
                     0.5, cv::Scalar(0, 0, 255), 1);
 */
-        // 绘制indicationBox
+        // Draw indicationBox
         cv::rectangle(dect_img, 
             cv::Point(indicationBox[0], indicationBox[1]), 
             cv::Point(indicationBox[2], indicationBox[3]), 
-            cv::Scalar(0, 255, 0), 2);  // 绿色矩形框
+            cv::Scalar(16, 255, 16), 2);  // Green
 /*
-        // 绘制人体中心点
-        cv::circle(dect_img, cv::Point(xCenter, yCenter), 7, cv::Scalar(255, 0, 0), -1);  // 蓝色圆点
+        // Weighted center of the person
+        cv::circle(dect_img, cv::Point(xCenter, yCenter), 7, cv::Scalar(255, 0, 0), -1);  // Blue dot
         cv::putText(dect_img, "Center", cv::Point(xCenter + 5, yCenter - 5), 
-                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 0, 0), 1);
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 16, 16), 1);
 */
 /*
         const std::vector<int> target_joints = {9, 11, 19, 20};
