@@ -497,7 +497,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
             }
         }
     }
-
+/*
     // 对每个关节热图应用Softmax归一化
     for (int i = 0; i < joint_num; i++)
     {
@@ -524,7 +524,8 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
             }
         }
     }
-
+*/
+/*
     // 创建所有关节的组合热图
     cv::Mat combined_heatmap(height, width, CV_32F, cv::Scalar(0));
     for (int i = 0; i < joint_num; i++)
@@ -547,7 +548,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
     // 应用伪彩色映射
     cv::Mat colored_combined;
     cv::applyColorMap(normalized_combined, colored_combined, cv::COLORMAP_JET);
-/*
+
     // 保存组合热图
     cv::imwrite("heatmaps_2d/combined_heatmap.jpg", colored_combined);
 */
@@ -561,7 +562,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
         cv::minMaxLoc(heatmaps[i], &minVal, &maxVal, &minLoc, &maxLoc);
         scores.at<float>(i) = maxVal;
     }
-    
+/*
     // 计算关节热图 - 用于可视化
     cv::Mat person_heatmap(height, width, CV_32F, cv::Scalar(0));
     for (int i = 0; i < joint_num; i++)
@@ -577,7 +578,7 @@ std::tuple<cv::Mat, cv::Mat> MobileHumanPose::processOutput2d(const cv::Mat &out
     // 调整热图大小
     cv::Mat resized_heatmap;
     cv::resize(person_heatmap, resized_heatmap, cv::Size(img_width, img_height));
-
+*/
     // 计算关节坐标 - 使用最大值法而不是加权平均法
     cv::Mat max_x(joint_num, 1, CV_32F);
     cv::Mat max_y(joint_num, 1, CV_32F);

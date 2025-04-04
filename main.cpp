@@ -2,6 +2,10 @@
 #include <sstream>
 #include <iostream>
 #include <chrono>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -97,6 +101,32 @@ int main()
 MobileHumanPose pose_estimator("mobile_human_pose_working_well_256x256.onnx");
 yolo_fast       yolo_model("yolofastv2.onnx", 0.3, 0.3, 0.4);
 
+
+// 全局变量用于线程间通信
+std::mutex mtxYolo;
+std::condition_variable condVarYolo;
+bool detection_done = false;
+cv::Mat thread_image;
+std::vector<cv::Vec4i> thread_boxes;
+
+// YOLO检测线程函数
+void yoloDetectionThread()
+{
+    while(true)
+    {
+        std::unique_lock<std::mutex> lock(mtxYolo);
+        condVarYolo.wait(lock, []{return !thread_image.empty();});
+        
+        // 执行检测
+        if (detection_done == false)
+            yolo_model.detect(thread_image, thread_boxes, 0);
+        
+        detection_done = true;
+        lock.unlock();
+        condVarYolo.notify_one();
+    }
+}
+
 void DetectExample (char *szImgPath)
 {
     std::vector<float> 		scores	= {99};
@@ -108,23 +138,41 @@ void DetectExample (char *szImgPath)
     // 添加计时功能
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    yolo_model.detect (image, boxes, 0);
+    // 准备线程数据
+    {
+        std::lock_guard<std::mutex> lock(mtxYolo);
+        thread_image = image.clone();
+        thread_boxes.clear();
+        detection_done = false;
+    }
+    condVarYolo.notify_one();
+    
+    // 等待检测完成
+    std::unique_lock<std::mutex> lock(mtxYolo);
+    condVarYolo.wait(lock, []{return detection_done;});
+
+    boxes = thread_boxes;
 
     auto dec_time = std::chrono::high_resolution_clock::now();
     auto durationDec = std::chrono::duration_cast<std::chrono::milliseconds>(dec_time - start_time);
-    printf ("检测时间: %ld毫秒  ", durationDec.count());
+    printf ("找人时间: %ld毫秒  ", durationDec.count());
     // 如果没有检测到人体，退出
     if (boxes.empty()) 
     {
+        /// @todo in case of Yolo fails: generate new box via momentum and sparse opti flow
+
         std::cout << "未检测到人体" << std::endl;
         return;
     }
+
+
+    /// @todo Track person via track detection box here
     
 
     start_time = std::chrono::high_resolution_clock::now();
     
     // 处理每个检测到的人体
-    for (size_t i = 0; i < boxes.size(); i++) 
+    for (size_t i =  0; i < boxes.size(); i++) 
     {
         // 估计姿态
         cv::Mat pose_2d, pose_3d, person_heatmap, joint_scores;
@@ -134,6 +182,42 @@ void DetectExample (char *szImgPath)
         std::tie(pose_2d_fast, joint_scores_fast) = 
             pose_estimator.estimatePose2d(image, boxes[i]);
 
+        // 在原始图像上绘制指定关节点(9,11,19,20)
+        cv::Mat pose_img = image.clone();
+        const std::vector<int> target_joints = {9, 11, 19, 20};
+        
+        for (int j : target_joints) 
+        {
+            if (j < pose_2d_fast.rows) 
+            {
+                // 获取关节点坐标
+                int x = static_cast<int>(pose_2d_fast.at<float>(j, 0)) + boxes[i][0];
+                int y = static_cast<int>(pose_2d_fast.at<float>(j, 1)) + boxes[i][1];
+                
+                // 确保坐标在图像范围内
+                if (x >= 0 && x < image.cols && y >= 0 && y < image.rows) 
+                {
+                    // 根据置信度调整圆的颜色（红色到绿色）
+                    float confidence = joint_scores_fast.at<float>(j);
+                    cv::Scalar color(0, 255 * confidence, 255 * (1 - confidence));
+                    
+                    // 绘制关节点
+                    cv::circle(pose_img, cv::Point(x, y), 5, color, -1);
+                    
+                    // 添加关节索引标签
+                    cv::putText(pose_img, std::to_string(j), 
+                                cv::Point(x + 5, y - 5), cv::FONT_HERSHEY_SIMPLEX, 
+                                0.5, cv::Scalar(0, 0, 255), 1);
+                }
+            }
+        }
+        
+        // 显示结果图像 - 调整到800像素高
+        cv::Mat resized_img;
+        float scale = 800.0f / pose_img.rows;
+        cv::resize(pose_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
+        cv::imshow("Pose Estimation", resized_img);
+        cv::waitKey(20);
     }
     
     // 计算并输出执行时间
@@ -164,13 +248,21 @@ int main()
     std::vector<cv::Vec4i>  boxes;
     cv::Mat					image	= cv::imread ("3.jpg");
 
-    DetectExample ("1.png");
-    DetectExample ("2.jpg");
-    DetectExample ("3.jpg");
-    DetectExample ("4.jpg");
-    DetectExample ("5.jpg");
-    DetectExample ("dec.jpg");
-    DetectExample ("hm.jpg");
+    std::thread yolo_thread(yoloDetectionThread);
+    yolo_thread.detach();
+
+    while (true)
+    {
+        // 遍历D:\VideoCache目录中的所有jpg文件
+        std::string path = "D:\\VideoCache\\*.jpg";
+        std::vector<cv::String> filenames;
+        cv::glob(path, filenames, false);
+        
+        for (const auto& filename : filenames)
+        {
+            DetectExample(const_cast<char*>(filename.c_str()));
+        }
+    }
     
 
 

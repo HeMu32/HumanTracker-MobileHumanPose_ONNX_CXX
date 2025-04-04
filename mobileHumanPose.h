@@ -23,35 +23,46 @@ public:
     // 重载调用运算符，方便直接调用对象进行姿态估计
     std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> operator()(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth = 1.0);
     
-    // 姿态估计主函数
-    // 估计姿态 - 完整版（包含3D信息）
+    /// @brief              An attempt to reproduce the 3d pose estimation. Failed
+    /// @param image        Picture to be estimatted
+    /// @param bbox         Bound box for the person to be estimatted
+    /// @param abs_depth    Depth
+    /// @return             tuple <cv::Mat, cv::Mat, cv::Mat, cv::Mat>: pose_2d, pose_3d, resized_heatmap, scores
     std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> estimatePose(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth);
     
     /// @brief      
     /// @param image    Picture to be dectected
     /// @param bbox     Bound box of a person, xyxy (not xywh!)
-    /// @return         tuple <cv::Mat, cv::Mat>, 
-    ///                 first for pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1), 
+    /// @return         tuple <cv::Mat, cv::Mat>, pose2d, scores
+    ///                 pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1), 
     ///                 in regard of top left of the box, unit: pixel
-    ///                 second for score
     std::tuple<cv::Mat, cv::Mat> estimatePose2d(const cv::Mat &image, const cv::Vec4i &bbox);
 
     // 处理输出 - 仅计算2D姿态（更高效）
 
-    /// @brief          处理输出 - 仅计算2D姿态（更高效）
+    /// @brief          Process model output into estimated 2d joints
     /// @param output   Output of MHP model
     /// @param bbox     box
-    /// @return 
+    /// @return         tuple <cv::Mat, cv::Mat>, pose2d, scores
+    ///                 pose2d: x: pose_2d.at<float>(i, 0), y: pose_2d.at<float>(i, 1), 
+    ///                 in regard of top left of the box, unit: pixel
     std::tuple<cv::Mat, cv::Mat> processOutput2d(const cv::Mat &output, const cv::Vec4i &bbox);
     
 private:
-    // 初始化模型
+    /// @brief              Initialize model
+    /// @param model_path 
     void initializeModel(const std::string &model_path);
     
-    // 准备输入数据
+    /// @brief          Prepare input to blob that the network accpects
+    /// @param image    Picture to be detected
+    /// @param bbox     Bound box for the preson
+    /// @return         Bolb aka input tensor
     cv::Mat prepareInput(const cv::Mat &image, const cv::Vec4i &bbox);
     
-    // 执行推理
+    /// @brief              Interference Mobile Human Pose via cv::dnn
+    /// @param input_tensor Input blob
+    /// @return             Model outupt, 1*672*32*32 heatmap
+    ///                     Actually 1*(21*32)*32*32, where each of 21 jints has a 32*32*32 heatmap
     cv::Mat inference(const cv::Mat &input_tensor);
     
     // 实现不能, 菜
