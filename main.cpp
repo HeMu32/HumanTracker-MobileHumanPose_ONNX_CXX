@@ -181,6 +181,11 @@ void DetectExample (char *szImgPath)
         cv::Mat pose_2d_fast, joint_scores_fast;
         std::tie(pose_2d_fast, joint_scores_fast) = 
             pose_estimator.estimatePose2d(image, boxes[i]);
+        
+        // 计算并输出执行时间
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        printf ("骨骼%d时间: %ld毫秒  ", i, duration.count());
 
         // 在原始图像上绘制指定关节点(9,11,19,20)
         cv::Mat pose_img = image.clone();
@@ -218,12 +223,12 @@ void DetectExample (char *szImgPath)
         cv::resize(pose_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
         cv::imshow("Pose Estimation", resized_img);
         cv::waitKey(20);
+
+        
     }
+    // 为上面的输出换行
+    putchar ('\n');
     
-    // 计算并输出执行时间
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    printf ("骨骼时间: %ld毫秒\n", duration.count());
 }
 
 

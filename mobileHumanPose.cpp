@@ -63,7 +63,9 @@ cv::Mat MobileHumanPose::prepareInput(const cv::Mat &image, const cv::Vec4i &bbo
     int x1 = bbox[0], y1 = bbox[1], x2 = bbox[2], y2 = bbox[3];
     if (x1 >= x2 || y1 >= y2 || x1 < 0 || y1 < 0 || x2 > image.cols || y2 > image.rows) 
     {
+#ifdef _DEBUG
         std::cout << "警告：无效的边界框 [" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << "]，将进行调整" << std::endl;
+#endif
         x1 = std::max(0, x1);
         y1 = std::max(0, y1);
         x2 = std::min(image.cols, x2);
