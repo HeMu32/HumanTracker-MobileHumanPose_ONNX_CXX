@@ -16,8 +16,8 @@ HumanTracker::~HumanTracker()
     // 停止线程
     thread_running = false;
     
-    // 唤醒线程以便退出
-    {
+    
+    {   // 唤醒线程以便退出
         std::lock_guard<std::mutex> lock(mtxYolo);
         detection_done = true;
     }
@@ -31,7 +31,7 @@ HumanTracker::~HumanTracker()
     }
 }
 
-void HumanTracker::initDetectionThread()
+void HumanTracker::initThreads()
 {
     if (!thread_running)
     {
@@ -56,7 +56,8 @@ void HumanTracker::yoloDetectionThread()
         // 执行检测
         if (detection_done == false)
         {
-            yolo_model.detect(thread_image, thread_boxes, 0);
+            if (!thread_boxes.empty() || !thread_image.empty())
+                yolo_model.detect(thread_image, thread_boxes, 0);
         }
         
         detection_done = true;
@@ -65,12 +66,16 @@ void HumanTracker::yoloDetectionThread()
     }
 }
 
-void HumanTracker::processImage(const cv::Mat& image)
+int HumanTracker::estimate(const cv::Mat& image)
 {
+    int ret = 0;
     if (image.empty())
     {
-        std::cout << "输入图像为空" << std::endl;
-        return;
+#ifdef _DEBUG
+        std::cout << "HumanTracker::estimate 输入图像为空" << std::endl;
+#endif
+        ret = -1;
+        return ret;
     }
     
     std::vector<cv::Vec4i> boxes;
@@ -96,15 +101,31 @@ void HumanTracker::processImage(const cv::Mat& image)
     auto dec_time = std::chrono::high_resolution_clock::now();
     auto durationDec = std::chrono::duration_cast<std::chrono::milliseconds>(dec_time - start_time);
     printf("找人时间: %ld毫秒  ", durationDec.count());
+
+
+    if (flagFirstFrame == false)
+    {
+        /// @todo perform optical flow estimation here
+    }
     
-    // 如果没有检测到人体，退出
     if (boxes.empty()) 
     {
+        /// @todo process momentumn-opti flow box generation here
         std::cout << "未检测到人体" << std::endl;
-        return;
+        ret = 1;
+        return ret;
+    }
+
+    if (boxes.size() > 1)
+    {
+        /// @todo Process tracking of boxex here
+
     }
     
     start_time = std::chrono::high_resolution_clock::now();
+
+    int xCenter;    // Weighted center of detected person
+    int yCenter;    // Weighted center of detected person
     
     // 处理每个检测到的人体
     for (size_t i = 0; i < boxes.size(); i++) 
@@ -121,9 +142,60 @@ void HumanTracker::processImage(const cv::Mat& image)
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         printf("骨骼%d时间: %ld毫秒  ", i, duration.count());
-        
+
+        // Calculate detection indication box (h: head to pelvis w: 1/4h)
+        // and center (avg of the head, spine and pelvis)
+        // For the output of interfrence result of cv::dnn, spine is indexed 9.
+        int xSpine  = static_cast<int>(pose_2d_fast.at<float>(9, 0))  + boxes[i][0];
+        int ySpine  = static_cast<int>(pose_2d_fast.at<float>(9, 1))  + boxes[i][1];
+        // Pelvis is indexed 11
+        int xPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 0)) + boxes[i][0];
+        int yPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 1)) + boxes[i][1];
+        // Have the position of head as avg of joint 19 and 20.
+        int xHead   = static_cast<int>(pose_2d_fast.at<float>(19, 0)) + boxes[i][0];
+        int yHead   = static_cast<int>(pose_2d_fast.at<float>(19, 1)) + boxes[i][1];
+        xHead /= 2.0f;     
+        yHead /= 2.0f;
+        xHead += (static_cast<int>(pose_2d_fast.at<float>(20, 0)) + boxes[i][0]) / 2.0f;
+        yHead += (static_cast<int>(pose_2d_fast.at<float>(20, 1)) + boxes[i][1]) / 2.0f;
+
+        xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
+        yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
+
+        cv::Vec4i indicationBox;    // Indication box is not bound box by yolo; this is for visualization.
+        indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
+        indicationBox[1] = yHead;
+        indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
+        indicationBox[3] = yPelvis;
+
         // 在原始图像上绘制指定关节点(9,11,19,20)
-        cv::Mat pose_img = image.clone();
+        cv::Mat dect_img = image.clone();
+/*
+        // Draw head
+        cv::circle (dect_img, cv::Point(xHead, yHead), 5, cv::Scalar(16, 16, 233), -1);     // Red for joints
+        cv::putText (dect_img, "Head", cv::Point(xHead + 5, yHead - 5), cv::FONT_HERSHEY_SIMPLEX, 
+                    0.5, cv::Scalar(0, 0, 255), 1);
+        // Draw spine
+        cv::circle (dect_img, cv::Point(xSpine, ySpine), 5, cv::Scalar(16, 16, 233), -1);     // Red for joints
+        cv::putText (dect_img, "Spine", cv::Point(xSpine + 5, ySpine - 5), cv::FONT_HERSHEY_SIMPLEX, 
+                    0.5, cv::Scalar(0, 0, 255), 1);
+        // Draw pelvis
+        cv::circle (dect_img, cv::Point(xPelvis, yPelvis), 5, cv::Scalar(16, 16, 233), -1);     // Red for joints
+        cv::putText (dect_img, "Pelvis", cv::Point(xPelvis + 5, yPelvis - 5), cv::FONT_HERSHEY_SIMPLEX, 
+                    0.5, cv::Scalar(0, 0, 255), 1);
+*/
+        // 绘制indicationBox
+        cv::rectangle(dect_img, 
+            cv::Point(indicationBox[0], indicationBox[1]), 
+            cv::Point(indicationBox[2], indicationBox[3]), 
+            cv::Scalar(0, 255, 0), 2);  // 绿色矩形框
+/*
+        // 绘制人体中心点
+        cv::circle(dect_img, cv::Point(xCenter, yCenter), 7, cv::Scalar(255, 0, 0), -1);  // 蓝色圆点
+        cv::putText(dect_img, "Center", cv::Point(xCenter + 5, yCenter - 5), 
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 0, 0), 1);
+*/
+/*
         const std::vector<int> target_joints = {9, 11, 19, 20};
         
         for (int j : target_joints) 
@@ -142,24 +214,31 @@ void HumanTracker::processImage(const cv::Mat& image)
                     cv::Scalar color(0, 255 * confidence, 255 * (1 - confidence));
                     
                     // 绘制关节点
-                    cv::circle(pose_img, cv::Point(x, y), 5, color, -1);
+                    cv::circle(dect_img, cv::Point(x, y), 5, color, -1);
                     
                     // 添加关节索引标签
-                    cv::putText(pose_img, std::to_string(j), 
+                    cv::putText(dect_img, std::to_string(j), 
                                 cv::Point(x + 5, y - 5), cv::FONT_HERSHEY_SIMPLEX, 
                                 0.5, cv::Scalar(0, 0, 255), 1);
                 }
             }
         }
-        
+*/        
         // 显示结果图像 - 调整到800像素高
         cv::Mat resized_img;
-        float scale = 800.0f / pose_img.rows;
-        cv::resize(pose_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
+        float scale = 800.0f / dect_img.rows;
+        cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
         cv::imshow("Pose Estimation", resized_img);
         cv::waitKey(20);
     }
-    
     // 为上面的输出换行
     putchar('\n');
+
+    this->PrevFrame      = image;
+    this->flagFirstFrame = true;
+    this->xPrevCenter    = xCenter;
+    this->yPrevCenter    = yCenter;
+    //this->PrevBox        = theTrackedBox;
+
+    return ret;
 }

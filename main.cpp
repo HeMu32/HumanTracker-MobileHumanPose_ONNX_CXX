@@ -18,7 +18,7 @@ int main()
     HumanTracker detector("mobile_human_pose_working_well_256x256.onnx", "yolofastv2.onnx");
     
     // 初始化检测线程
-    detector.initDetectionThread();
+    detector.initThreads();
     
     while (true)
     {
@@ -34,7 +34,7 @@ int main()
             if (!image.empty())
             {
                 // 处理图像
-                detector.processImage(image);
+                detector.estimate(image);
             }
         }
     }
