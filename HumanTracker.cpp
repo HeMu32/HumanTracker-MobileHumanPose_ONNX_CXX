@@ -196,8 +196,8 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
     int xFlow = 0, yFlow = 0;
     if (validCount > 0) 
     {
-        xFlow = avgDx / validCount / 5;     // 多除以一个经验值
-        yFlow = avgDy / validCount / 5;
+        xFlow = avgDx / validCount;
+        yFlow = avgDy / validCount;
     }
 #ifdef _DEBUG_OPTIFLOW
     // 可视化光流结果
@@ -294,7 +294,9 @@ int HumanTracker::estimate(const cv::Mat& image)
     else if (boxes.empty()) 
     {
         /// @todo process momentumn-opti flow box generation here
+#ifdef _DEBUG
         std::cout << "未检测到人体  ";
+#endif
         ret = -1;
 
         int xMoVec = momentum[0] * 0.5 + xOptiFlow * 0.5;
@@ -366,8 +368,8 @@ int HumanTracker::estimate(const cv::Mat& image)
         {
             // 计算光流向量终点
             cv::Point startPoint(xPrevCenter, yPrevCenter);
-            // 放大光流向量以便更好地可视化（乘以10倍）
-            cv::Point endPoint(xPrevCenter + xOptiFlow * 10, yPrevCenter + yOptiFlow * 10);
+
+            cv::Point endPoint(xPrevCenter + xOptiFlow, yPrevCenter + yOptiFlow);
             
             // 绘制黄色线段表示光流方向
             cv::line(dect_img, startPoint, endPoint, cv::Scalar(16, 233, 233), 2);  // Yellow
