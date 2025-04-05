@@ -276,6 +276,19 @@ void HumanTracker::optiFlowThread()
     }
 }
 
+int HumanTracker::UpdateBoundBox_ByTracking (
+        cv::Vec4i &PredectedBox, cv::Vec4i &Box_ToBeUpdate,
+        int &xCenter, int &yCenter,
+        int &xMoVec, int &yMoVec)
+{
+    Box_ToBeUpdate = PredectedBox;
+    xCenter = xPrevCenter + xMoVec;
+    yCenter = yPrevCenter + yMoVec;
+
+    this->uiTLCount++;
+    return this->uiTLCount;
+}
+
 int HumanTracker::estimate(const cv::Mat& image)
 {
     int ret = 0;
@@ -344,7 +357,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
 
     // Obtain the weighted movement vector
-    xMoVec = momentum[0] * 0.5 + xOptiFlow * 0.5;
+    xMoVec = momentum[0] * 0.4 + xOptiFlow * 0.6;
     yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
 
     // Calculate bound box prediction
@@ -376,9 +389,9 @@ int HumanTracker::estimate(const cv::Mat& image)
         }
 
         // Find the closest one
-        size_t minDistIndex = 0;
-        float minDist = std::numeric_limits<float>::max();
-        size_t idx = 0;
+        size_t  minDistIndex = 0;
+        float   minDist = std::numeric_limits<float>::max();
+        size_t  idx = 0;
         
         for (const float& dist : scoreList) 
         {
@@ -390,8 +403,27 @@ int HumanTracker::estimate(const cv::Mat& image)
             idx++;
         }
         
+        unsigned ui = pow(xMoVec, 2) + pow(yMoVec, 2); // A temp value for debugging
+        
         // Obtain the tracked box
-        TrackedBox = boxes[minDistIndex];
+        if (minDist < MAX(3200, (64 * (pow(xMoVec, 2) + pow(yMoVec, 2) )) ) || \
+            flagFirstFrame)
+        {   // Within tolerence, use detection. Taking 3200/64 as a thresh for now.
+            /// @todo thresh should be change to something relating to frame size.
+            TrackedBox = boxes[minDistIndex];
+
+            // Got detection. Set to false.
+            this->flagFirstFrame = false;
+            // Successful detection, reset counter.
+            this->uiTLCount      = 0;
+        }
+        else
+        {   // If the cloest box is too far. 
+#ifdef _DEBUG
+        std::cout << "丢失追踪一帧  ";
+#endif
+            UpdateBoundBox_ByTracking (PredectedBox, TrackedBox, xCenter, yCenter, xMoVec, yMoVec);
+        }
     }
     else if (boxes.empty()) 
     {
@@ -401,9 +433,7 @@ int HumanTracker::estimate(const cv::Mat& image)
         ret = 1;
 
         // In case Yolo fails: just use the prediction
-        TrackedBox = PredectedBox;
-        xCenter = xPrevCenter + xMoVec;
-        yCenter = yPrevCenter + yMoVec;
+        UpdateBoundBox_ByTracking (PredectedBox, TrackedBox, xCenter, yCenter, xMoVec, yMoVec);
     }
     
     start_time = std::chrono::high_resolution_clock::now();
@@ -485,7 +515,6 @@ int HumanTracker::estimate(const cv::Mat& image)
     // 为上面的输出换行
     putchar('\n');
 
-    this->flagFirstFrame = false;
     this->PrevFrame      = image;
     this->PrevBox        = TrackedBox;
     this->PrevIndiBox    = indicationBox;
@@ -494,6 +523,23 @@ int HumanTracker::estimate(const cv::Mat& image)
     this->momentum[0]    = 0.8 * (xCenter - xPrevCenter) + 0.2 * momentum[0];
     this->momentum[1]    = 0.8 * (yCenter - yPrevCenter) + 0.2 * momentum[1];
     //this->PrevBox        = theTrackedBox;
+
+    if (uiTLCount > MAX_TL_CNT)
+    {
+        /// @todo re-initialize prev frame info
+        /// @todo check if there's any other need to be reset
+        this->PrevFrame      = cv::Mat();
+        this->PrevBox        = {0, 0, 0, 0};
+        this->PrevIndiBox    = {0, 0, 0, 0};
+        this->xPrevCenter    = xCenter;         // May not need to reset?
+        this->yPrevCenter    = yCenter;         // May not need to reset?
+        this->momentum[0]    = 0;
+        this->momentum[1]    = 0;
+        this->uiTLCount      = 0;
+        this->flagFirstFrame = true;
+
+        ret = -1;
+    }
 
     return ret;
 }
