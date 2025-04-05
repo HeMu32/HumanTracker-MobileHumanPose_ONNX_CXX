@@ -313,6 +313,8 @@ int HumanTracker::estimate(const cv::Mat& image)
     // If not the first frame detecting pepole, estimate optical flow 
     if (flagFirstFrame == false)
     {
+        /// @todo   add a method to limit the maxium output of optical flow
+        ///         under the assertion that a person chould not flash
         std::lock_guard<std::mutex> lock(mtxOptiFlow);
         thread_prevFrame = PrevFrame.clone();
         thread_prevBox = PrevIndiBox;
@@ -388,23 +390,19 @@ int HumanTracker::estimate(const cv::Mat& image)
 #ifdef _DEBUG
         std::cout << "未检测到人体  ";
 #endif
-        ret = -1;
+        ret = 1;
 
-        cv::Vec4i newBox;
-
-        newBox[0] = PrevBox[0] + xMoVec;
-        newBox[0] = PrevBox[0] + yMoVec;
-        newBox[0] = PrevBox[0] + xMoVec;
-        newBox[0] = PrevBox[0] + yMoVec;
+        TrackedBox[0] = PrevBox[0] + xMoVec;
+        TrackedBox[1] = PrevBox[1] + yMoVec;
+        TrackedBox[2] = PrevBox[2] + xMoVec;
+        TrackedBox[3] = PrevBox[3] + yMoVec;
         xCenter = xPrevCenter + xMoVec;
         yCenter = yPrevCenter + yMoVec;
-
-        TrackedBox = newBox;
     }
     
     start_time = std::chrono::high_resolution_clock::now();
     
-    // 只处理被跟踪的人体框
+    // Estimate pose for the tracked box
     // 估计姿态
     cv::Mat pose_2d_fast, joint_scores_fast;
     std::tie(pose_2d_fast, joint_scores_fast) = 
@@ -483,6 +481,7 @@ int HumanTracker::estimate(const cv::Mat& image)
 
     this->flagFirstFrame = false;
     this->PrevFrame      = image;
+    this->PrevBox        = TrackedBox;
     this->PrevIndiBox    = indicationBox;
     this->xPrevCenter    = xCenter;
     this->yPrevCenter    = yCenter;
