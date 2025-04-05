@@ -342,12 +342,18 @@ int HumanTracker::estimate(const cv::Mat& image)
         yOptiFlow = thread_yOptiFlow;
     }
 
+    // Obtain the weighted movement vector
     xMoVec = momentum[0] * 0.5 + xOptiFlow * 0.5;
     yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
 
     /// @todo May introduce a logic in case track lost
+    /// @todo Temporal correlation to shallow for now, may keep deeper temporal box info
     if (boxes.size() >= 1)
     {   // Process tracking of boxes here
+        /// @todo   Obtain a initial value for data of previous frame,  
+        ///         for selection of the person to track.
+        /// @todo   Obtain another method that detects person only and returns boxes, 
+        ///         in convience of user selectig the person to track in the front end
         int xCenterEst = PrevBox[0] / 2.0f + PrevBox[2] / 2.0f;
         int yCenterEst = PrevBox[1] / 2.0f + PrevBox[3] / 2.0f;
         xCenterEst += xMoVec;

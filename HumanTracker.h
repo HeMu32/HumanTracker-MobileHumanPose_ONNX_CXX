@@ -39,29 +39,22 @@ private:
     // Momentumn of human detection box
     int momentum[2] = {0, 0};
 
-    // 光流追踪相关参数
-    std::vector<uchar> status;
-    std::vector<float> err;
-
     // Indicator of "no frame has yet been detected", thus no info
     // of previous frame available. Initialized to be true.
     bool flagFirstFrame = true;
 
     // Keep info of previous picture to preform optical flow estimation
-    cv::Mat     PrevFrame;
-    // Bound box (by yolo) on the previous frame. xyxy.
-    cv::Vec4i   PrevBox;
-    // This center is the weighted center of the person, not the center of the box!!
-    int         xPrevCenter;
-    int         yPrevCenter;
-    // Indication box for previous picture, xyxy, for visualization and optical flow tracking
-    cv::Vec4i   PrevIndiBox;
+    cv::Mat     PrevFrame;      // Keep previous frame to estimate optical flow.
+    cv::Vec4i   PrevBox;        // Bound box (by yolo) on the previous frame. xyxy.
+    int         xPrevCenter;    // Weighted center of the person, not the center of the box!!
+    int         yPrevCenter;    // Weighted center of the person, not the center of the box!!
+    cv::Vec4i   PrevIndiBox;    // Indication box of previous picture, xyxy, for visualization and optical flow tracking.
 
 private:
     /// @brief Yolo service thread, for parallel computing with optical flow
     void yoloDetectionThread();
 
-    // Virables for sync. with yoloDetectionThread()
+    // Virables related to yoloDetectionThread()
     std::mutex mtxYolo;
     std::condition_variable condVarYolo;
     bool detection_done;
@@ -97,12 +90,13 @@ private:
     /// @brief Optical flow service threead, for parallel computing with Yolo detection
     void optiFlowThread();
 
-    // 光流线程相关
+    // Virables related to optiFlowThread()
     std::condition_variable condVarOptiFlow;
     std::thread    *optiflow_thread;
     std::mutex      mtxOptiFlow;
     cv::Mat         thread_prevFrame;
     cv::Vec4i       thread_prevBox;
+    std::vector<float> err;
     bool            optiflow_done       = false;
     int             thread_xOptiFlow    = 0;
     int             thread_yOptiFlow    = 0;
