@@ -133,13 +133,12 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
     const std::vector<cv::Point2f>& nextPoints,
     const std::vector<uchar>& status,
     const cv::Mat& visualImage)
-{
-    // 计算有效光流的平均位移，并过滤异常值
+{   // Filter out excessive value then calculate average
     int validCount = 0;
     float avgDx = 0, avgDy = 0;
     std::vector<float> dxValues, dyValues;
     
-    // 第一遍：收集所有有效的位移值
+    // Obtain all tracked movements
     for (size_t i = 0; i < status.size(); i++)
     {
         if (status[i])
@@ -151,13 +150,13 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
         }
     }
     
-    // 计算中位数和标准差，用于过滤异常值
+    // Want to filter out excessive values, by median and std. dev.
     float medianDx = 0, medianDy = 0;
     float stdDevDx = 0, stdDevDy = 0;
     
     if (!dxValues.empty())
     {
-        // 计算中位数
+        // Calculate median
         size_t n = dxValues.size() / 2;
         std::nth_element(dxValues.begin(), dxValues.begin() + n, dxValues.end());
         medianDx = dxValues[n];
@@ -165,22 +164,23 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
         std::nth_element(dyValues.begin(), dyValues.begin() + n, dyValues.end());
         medianDy = dyValues[n];
         
-        // 计算标准差
+        // Calculate std. dev.
         for (float dx : dxValues) stdDevDx += (dx - medianDx) * (dx - medianDx);
         for (float dy : dyValues) stdDevDy += (dy - medianDy) * (dy - medianDy);
         
         stdDevDx = std::sqrt(stdDevDx / dxValues.size());
         stdDevDy = std::sqrt(stdDevDy / dyValues.size());
     }
-    
-    // 创建可视化图像用于调试
+#ifdef _DEBUG_OPTIFLOW
+    // Picture for visualization
     cv::Mat flowVis;
     if (!visualImage.empty())
     {
         flowVis = visualImage.clone();
     }
+#endif
     
-    // 第二遍：过滤异常值并计算平均值
+    // Filter out excessive values and obtain average
     std::vector<uchar> filteredStatus = status;
     for (size_t i = 0; i < status.size(); i++)
     {
@@ -189,7 +189,7 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
             float dx = nextPoints[i].x - prevPoints[i].x;
             float dy = nextPoints[i].y - prevPoints[i].y;
             
-            // 过滤异常值（超过中位数±2个标准差的值）
+            // Filter out points exceeds 2 std. div.
             if (std::abs(dx - medianDx) <= 2 * stdDevDx && 
                 std::abs(dy - medianDy) <= 2 * stdDevDy)
             {
@@ -199,7 +199,7 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
             }
             else
             {
-                // 标记为无效点
+                // Mark as bad prediction manually
                 filteredStatus[i] = 0;
             }
         }
@@ -250,22 +250,22 @@ void HumanTracker::optiFlowThread()
         std::unique_lock<std::mutex> lock(mtxOptiFlow);
         condVarOptiFlow.wait(lock, [this]{return !thread_prevFrame.empty() || !thread_running;});
         
-        // 如果线程被要求退出，则退出循环
+        // Exit loop if a termination is commanded
         if (!thread_running)
         {
             break;
         }
         
-        // 执行光流计算
+        // Optical flow estimation
         if (optiflow_done == false && !thread_prevFrame.empty())
         {
             cv::Mat prevGray, currGray;
             
-            // 转换为灰度图
+            // Convert to gray
             cv::cvtColor(thread_prevFrame, prevGray, cv::COLOR_BGR2GRAY);
             cv::cvtColor(thread_image, currGray, cv::COLOR_BGR2GRAY);
             
-            // 计算光流并获取结果
+            // Preform estimation
             std::tie(thread_xOptiFlow, thread_yOptiFlow) = 
                 calculateOpticalFlow(prevGray, currGray, thread_prevBox, thread_image);
         }
@@ -347,7 +347,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     xMoVec = momentum[0] * 0.5 + xOptiFlow * 0.5;
     yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
 
-    // Calculate predected bound box
+    // Calculate bound box prediction
     PredectedBox[0] = PrevBox[0] + xMoVec;
     PredectedBox[1] = PrevBox[1] + yMoVec;
     PredectedBox[2] = PrevBox[2] + xMoVec;
@@ -395,12 +395,12 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
     else if (boxes.empty()) 
     {
-        /// @todo process momentumn-opti flow box generation here
 #ifdef _DEBUG
         std::cout << "未检测到人体  ";
 #endif
         ret = 1;
 
+        // In case Yolo fails: just use the prediction
         TrackedBox = PredectedBox;
         xCenter = xPrevCenter + xMoVec;
         yCenter = yPrevCenter + yMoVec;
@@ -494,9 +494,6 @@ int HumanTracker::estimate(const cv::Mat& image)
     this->momentum[0]    = 0.8 * (xCenter - xPrevCenter) + 0.2 * momentum[0];
     this->momentum[1]    = 0.8 * (yCenter - yPrevCenter) + 0.2 * momentum[1];
     //this->PrevBox        = theTrackedBox;
-
-    if (ret == -1)
-        return ret;
 
     return ret;
 }

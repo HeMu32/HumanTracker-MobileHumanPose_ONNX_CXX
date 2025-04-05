@@ -39,7 +39,7 @@ private:
     // Momentumn of human detection box
     int momentum[2] = {0, 0};
 
-    // Indicator of "no frame has yet been detected", thus no info
+    // Indicator of "no person has yet been detected", thus no info
     // of previous frame available. Initialized to be true.
     bool flagFirstFrame = true;
 
