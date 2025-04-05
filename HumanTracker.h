@@ -30,7 +30,7 @@ public:
     int estimate(const cv::Mat& image);
     
 private:
-    // 模型
+    // Models employed here
     MobileHumanPose pose_estimator;
     yolo_fast       yolo_model;
 
@@ -54,7 +54,11 @@ private:
     int         yPrevCenter;
     // Indication box for previous picture, xyxy, for visualization and optical flow tracking
     cv::Vec4i   PrevIndiBox;
-    
+
+private:
+    /// @brief Yolo service thread, for parallel computing with optical flow
+    void yoloDetectionThread();
+
     // Virables for sync. with yoloDetectionThread()
     std::mutex mtxYolo;
     std::condition_variable condVarYolo;
@@ -64,32 +68,42 @@ private:
     std::thread* yolo_thread;
     bool thread_running;
     
-    // YOLO检测线程函数
-    void yoloDetectionThread();
     
 private:
-    // 计算光流
+    /// @brief              Estimate sparse optical flow for range of picture the box.
+    ///                     Used here for estimate the movement of the preson been tracked.
+    /// @param prevGray 
+    /// @param currGray 
+    /// @param box 
+    /// @param visualImage 
+    /// @return             pair<int, int>, movement vector (x, y)
     std::pair<int, int> calculateOpticalFlow(const cv::Mat& prevGray, const cv::Mat& currGray, 
                                             const cv::Vec4i& box, const cv::Mat& visualImage);
     
-    // 处理光流结果
+    /// @brief              Process the result of calculateOpticalFlow()
+    /// @param prevPoints 
+    /// @param nextPoints 
+    /// @param status 
+    /// @param visualImage 
+    /// @return             pair<int, int>, movement vector (x, y)
     std::pair<int, int> processOpticalFlowResults(
         const std::vector<cv::Point2f>& prevPoints, 
         const std::vector<cv::Point2f>& nextPoints,
         const std::vector<uchar>& status,
         const cv::Mat& visualImage);
 
+    /// @brief Optical flow service threead, for parallel computing with Yolo detection
     void optiFlowThread();
 
     // 光流线程相关
-    std::thread* optiflow_thread;
-    std::mutex mtxOptiFlow;
     std::condition_variable condVarOptiFlow;
-    bool optiflow_done;
-    cv::Mat thread_prevFrame;
-    cv::Vec4i thread_prevBox;
-    int thread_xOptiFlow        = 0;
-    int thread_yOptiFlow        = 0;
+    std::thread    *optiflow_thread;
+    std::mutex      mtxOptiFlow;
+    cv::Mat         thread_prevFrame;
+    cv::Vec4i       thread_prevBox;
+    bool            optiflow_done       = false;
+    int             thread_xOptiFlow    = 0;
+    int             thread_yOptiFlow    = 0;
 };
 
 #endif // POSE_DETECTOR_H
