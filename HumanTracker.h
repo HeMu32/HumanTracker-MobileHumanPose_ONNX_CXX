@@ -67,17 +67,29 @@ private:
     // YOLO检测线程函数
     void yoloDetectionThread();
     
-    private:
-        // 计算光流
-        std::pair<int, int> calculateOpticalFlow(const cv::Mat& prevGray, const cv::Mat& currGray, 
-                                                const cv::Vec4i& box, const cv::Mat& visualImage);
-        
-        // 处理光流结果
-        std::pair<int, int> processOpticalFlowResults(
-            const std::vector<cv::Point2f>& prevPoints, 
-            const std::vector<cv::Point2f>& nextPoints,
-            const std::vector<uchar>& status,
-            const cv::Mat& visualImage);
+private:
+    // 计算光流
+    std::pair<int, int> calculateOpticalFlow(const cv::Mat& prevGray, const cv::Mat& currGray, 
+                                            const cv::Vec4i& box, const cv::Mat& visualImage);
+    
+    // 处理光流结果
+    std::pair<int, int> processOpticalFlowResults(
+        const std::vector<cv::Point2f>& prevPoints, 
+        const std::vector<cv::Point2f>& nextPoints,
+        const std::vector<uchar>& status,
+        const cv::Mat& visualImage);
+
+    void optiFlowThread();
+
+    // 光流线程相关
+    std::thread* optiflow_thread;
+    std::mutex mtxOptiFlow;
+    std::condition_variable condVarOptiFlow;
+    bool optiflow_done;
+    cv::Mat thread_prevFrame;
+    cv::Vec4i thread_prevBox;
+    int thread_xOptiFlow        = 0;
+    int thread_yOptiFlow        = 0;
 };
 
 #endif // POSE_DETECTOR_H

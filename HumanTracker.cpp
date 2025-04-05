@@ -16,18 +16,29 @@ HumanTracker::~HumanTracker()
     // 停止线程
     thread_running = false;
     
-    
-    {   // 唤醒线程以便退出
+    {   // 唤醒YOLO线程以便退出
         std::lock_guard<std::mutex> lock(mtxYolo);
         detection_done = true;
     }
     condVarYolo.notify_one();
+    
+    {   // 唤醒光流线程以便退出
+        std::lock_guard<std::mutex> lock(mtxOptiFlow);
+        optiflow_done = true;
+    }
+    condVarOptiFlow.notify_one();
     
     // 等待线程结束
     if (yolo_thread && yolo_thread->joinable())
     {
         yolo_thread->join();
         delete yolo_thread;
+    }
+    
+    if (optiflow_thread && optiflow_thread->joinable())
+    {
+        optiflow_thread->join();
+        delete optiflow_thread;
     }
 }
 
@@ -37,6 +48,7 @@ void HumanTracker::initThreads()
     {
         thread_running = true;
         yolo_thread = new std::thread(&HumanTracker::yoloDetectionThread, this);
+        optiflow_thread = new std::thread(&HumanTracker::optiFlowThread, this);
     }
 }
 
@@ -231,6 +243,39 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
     return {xFlow, yFlow};
 }
 
+void HumanTracker::optiFlowThread()
+{
+    while (thread_running)
+    {
+        std::unique_lock<std::mutex> lock(mtxOptiFlow);
+        condVarOptiFlow.wait(lock, [this]{return !thread_prevFrame.empty() || !thread_running;});
+        
+        // 如果线程被要求退出，则退出循环
+        if (!thread_running)
+        {
+            break;
+        }
+        
+        // 执行光流计算
+        if (optiflow_done == false && !thread_prevFrame.empty())
+        {
+            cv::Mat prevGray, currGray;
+            
+            // 转换为灰度图
+            cv::cvtColor(thread_prevFrame, prevGray, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(thread_image, currGray, cv::COLOR_BGR2GRAY);
+            
+            // 计算光流并获取结果
+            std::tie(thread_xOptiFlow, thread_yOptiFlow) = 
+                calculateOpticalFlow(prevGray, currGray, thread_prevBox, thread_image);
+        }
+        
+        optiflow_done = true;
+        lock.unlock();
+        condVarOptiFlow.notify_one();
+    }
+}
+
 int HumanTracker::estimate(const cv::Mat& image)
 {
     int ret = 0;
@@ -253,7 +298,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     // 添加计时功能
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    // 准备线程数据
+    // 准备YOLO线程数据
     {
         std::lock_guard<std::mutex> lock(mtxYolo);
         thread_image = image.clone();
@@ -262,28 +307,34 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
     condVarYolo.notify_one();
     
-    // 等待检测完成
-    std::unique_lock<std::mutex> lock(mtxYolo);
-    condVarYolo.wait(lock, [this]{return detection_done;});
+    // 准备光流线程数据（如果不是第一帧）
+    if (flagFirstFrame == false)
+    {
+        std::lock_guard<std::mutex> lock(mtxOptiFlow);
+        thread_prevFrame = PrevFrame.clone();
+        thread_prevBox = PrevIndiBox;
+        optiflow_done = false;
+    }
+    condVarOptiFlow.notify_one();
     
-    boxes = thread_boxes;
+    // 等待YOLO检测完成
+    {
+        std::unique_lock<std::mutex> lock(mtxYolo);
+        condVarYolo.wait(lock, [this]{return detection_done;});
+        boxes = thread_boxes;
+    }
     
     auto dec_time = std::chrono::high_resolution_clock::now();
     auto durationDec = std::chrono::duration_cast<std::chrono::milliseconds>(dec_time - start_time);
     printf("找人时间: %ld毫秒  ", durationDec.count());
 
-
+    // 如果不是第一帧，等待光流计算完成
     if (flagFirstFrame == false)
     {
-        // 执行光流估计
-        cv::Mat prevGray, currGray;
-        
-        // 转换为灰度图
-        cv::cvtColor(PrevFrame, prevGray, cv::COLOR_BGR2GRAY);
-        cv::cvtColor(image, currGray, cv::COLOR_BGR2GRAY);
-     
-        // 计算光流并获取结果
-        std::tie(xOptiFlow, yOptiFlow) = calculateOpticalFlow(prevGray, currGray, PrevIndiBox, image);
+        std::unique_lock<std::mutex> lock(mtxOptiFlow);
+        condVarOptiFlow.wait(lock, [this]{return optiflow_done;});
+        xOptiFlow = thread_xOptiFlow;
+        yOptiFlow = thread_yOptiFlow;
     }
 
     if (boxes.size() > 1)
