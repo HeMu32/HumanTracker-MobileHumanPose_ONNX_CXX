@@ -289,16 +289,19 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
     
     std::vector<cv::Vec4i> boxes;   // Bound box of detected people by Yolo
+    cv::Vec4i TrackedBox;           // Bound box for the person be tracked, elected from @var boxes 
     cv::Vec4i indicationBox;        // For visualization and optical flow calc., not the bound box by yolo.
     int xOptiFlow   = 0;            // x value of optical flow vector
     int yOptiFlow   = 0;            // y value of optical flow vector
     int xCenter     = 0;            // Weighted center of detected person
     int yCenter     = 0;            // Weighted center of detected person
+    int xMoVec      = 0;            // Weighted motion vector by combining momentum and optical flow est.
+    int yMoVec      = 0;            // Weighted motion vector by combining momentum and optical flow est.
     
     // 添加计时功能
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    // 准备YOLO线程数据
+    // Start yolo detection for this frame
     {
         std::lock_guard<std::mutex> lock(mtxYolo);
         thread_image = image.clone();
@@ -307,7 +310,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
     condVarYolo.notify_one();
     
-    // 准备光流线程数据（如果不是第一帧）
+    // If not the first frame detecting pepole, estimate optical flow 
     if (flagFirstFrame == false)
     {
         std::lock_guard<std::mutex> lock(mtxOptiFlow);
@@ -317,7 +320,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     }
     condVarOptiFlow.notify_one();
     
-    // 等待YOLO检测完成
+    // Wait for yolo detection to finish
     {
         std::unique_lock<std::mutex> lock(mtxYolo);
         condVarYolo.wait(lock, [this]{return detection_done;});
@@ -328,7 +331,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     auto durationDec = std::chrono::duration_cast<std::chrono::milliseconds>(dec_time - start_time);
     printf("找人时间: %ld毫秒  ", durationDec.count());
 
-    // 如果不是第一帧，等待光流计算完成
+    // Wait for optical flow estimation to finish
     if (flagFirstFrame == false)
     {
         std::unique_lock<std::mutex> lock(mtxOptiFlow);
@@ -337,10 +340,47 @@ int HumanTracker::estimate(const cv::Mat& image)
         yOptiFlow = thread_yOptiFlow;
     }
 
-    if (boxes.size() > 1)
-    {
-        /// @todo Process tracking of boxex here
+    xMoVec = momentum[0] * 0.5 + xOptiFlow * 0.5;
+    yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
 
+    /// @todo May introduce a logic in case track lost
+    if (boxes.size() >= 1)
+    {   // Process tracking of boxes here
+        int xCenterEst = PrevBox[0] / 2.0f + PrevBox[2] / 2.0f;
+        int yCenterEst = PrevBox[1] / 2.0f + PrevBox[3] / 2.0f;
+        xCenterEst += xMoVec;
+        yCenterEst += yMoVec;
+
+        // Square distance of center of detected boxes 
+        // to the weighted movement vector estimated box center
+        std::list<float> distanceList;
+
+        for (size_t i = 0; i < boxes.size(); i++) 
+        {   // Obtain center of the boxes, 
+            // and compare to the estimation of weighted movement vector
+            int xCenter = boxes[i][0] / 2.0f + boxes[i][2] / 2.0f;
+            int yCenter = boxes[i][1] / 2.0f + boxes[i][3] / 2.0f;
+            
+            distanceList.push_back(powf(xCenterEst - xCenter, 2) + powf(yCenterEst - yCenter, 2));
+        }
+
+        // Find the closest one
+        size_t minDistIndex = 0;
+        float minDist = std::numeric_limits<float>::max();
+        size_t idx = 0;
+        
+        for (const float& dist : distanceList) 
+        {
+            if (dist < minDist) 
+            {
+                minDist = dist;
+                minDistIndex = idx;
+            }
+            idx++;
+        }
+        
+        // Obtain the tracked box
+        TrackedBox = boxes[minDistIndex];
     }
     else if (boxes.empty()) 
     {
@@ -350,9 +390,6 @@ int HumanTracker::estimate(const cv::Mat& image)
 #endif
         ret = -1;
 
-        int xMoVec = momentum[0] * 0.5 + xOptiFlow * 0.5;
-        int yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
-
         cv::Vec4i newBox;
 
         newBox[0] = PrevBox[0] + xMoVec;
@@ -361,98 +398,96 @@ int HumanTracker::estimate(const cv::Mat& image)
         newBox[0] = PrevBox[0] + yMoVec;
         xCenter = xPrevCenter + xMoVec;
         yCenter = yPrevCenter + yMoVec;
+
+        TrackedBox = newBox;
     }
     
     start_time = std::chrono::high_resolution_clock::now();
     
-    // 处理每个检测到的人体
-    for (size_t i = 0; i < boxes.size(); i++) 
+    // 只处理被跟踪的人体框
+    // 估计姿态
+    cv::Mat pose_2d_fast, joint_scores_fast;
+    std::tie(pose_2d_fast, joint_scores_fast) = 
+        pose_estimator.estimatePose2d(image, TrackedBox);
+    
+    // 计算并输出执行时间
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    printf("骨骼时间: %ld毫秒  ", duration.count());
+
+    // Calculate detection indication box (h: head to pelvis w: 1/4h)
+    // and center (avg of the head, spine and pelvis)
+    // For the output of interfrence result of cv::dnn, spine is indexed 9.
+    int xSpine  = static_cast<int>(pose_2d_fast.at<float>(9, 0))  + TrackedBox[0];
+    int ySpine  = static_cast<int>(pose_2d_fast.at<float>(9, 1))  + TrackedBox[1];
+    // Pelvis is indexed 11
+    int xPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 0)) + TrackedBox[0];
+    int yPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 1)) + TrackedBox[1];
+    // Have the position of head as avg of joint 19 and 20.
+    int xHead   = static_cast<int>(pose_2d_fast.at<float>(19, 0)) + TrackedBox[0];
+    int yHead   = static_cast<int>(pose_2d_fast.at<float>(19, 1)) + TrackedBox[1];
+    xHead /= 2.0f;     
+    yHead /= 2.0f;
+    xHead += (static_cast<int>(pose_2d_fast.at<float>(20, 0)) + TrackedBox[0]) / 2.0f;
+    yHead += (static_cast<int>(pose_2d_fast.at<float>(20, 1)) + TrackedBox[1]) / 2.0f;
+
+    xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
+    yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
+
+    indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
+    indicationBox[1] = yHead;
+    indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
+    indicationBox[3] = yPelvis;
+#ifdef _DEBUG_VISUALIZATOIN
+    // Visualization
+    cv::Mat dect_img = image.clone();
+    
+    // Draw tracked box
+    cv::rectangle(dect_img, 
+        cv::Point(TrackedBox[0], TrackedBox[1]), 
+        cv::Point(TrackedBox[2], TrackedBox[3]), 
+        cv::Scalar(233, 16, 16), 2);  // Blue
+        
+    // Draw indicationBox
+    cv::rectangle(dect_img, 
+        cv::Point(indicationBox[0], indicationBox[1]), 
+        cv::Point(indicationBox[2], indicationBox[3]), 
+        cv::Scalar(16, 233, 16), 2);  // Green
+    
+    // 绘制光流向量 - 从前一帧中心点到预测位置的黄色线段
+    if (flagFirstFrame == false) 
     {
-        // 估计姿态
-        cv::Mat pose_2d, pose_3d, person_heatmap, joint_scores;
+        // 计算光流向量终点
+        cv::Point startPoint(xPrevCenter, yPrevCenter);
+        cv::Point endPoint(xPrevCenter + xOptiFlow, yPrevCenter + yOptiFlow);
         
-        // 使用更高效的2D姿态估计方法
-        cv::Mat pose_2d_fast, joint_scores_fast;
-        std::tie(pose_2d_fast, joint_scores_fast) = 
-            pose_estimator.estimatePose2d(image, boxes[i]);
+        // 绘制黄色线段表示光流方向
+        cv::line(dect_img, startPoint, endPoint, cv::Scalar(16, 233, 233), 2);  // Yellow
         
-        // 计算并输出执行时间
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        printf("骨骼%d时间: %ld毫秒  ", i, duration.count());
-
-        // Calculate detection indication box (h: head to pelvis w: 1/4h)
-        // and center (avg of the head, spine and pelvis)
-        // For the output of interfrence result of cv::dnn, spine is indexed 9.
-        int xSpine  = static_cast<int>(pose_2d_fast.at<float>(9, 0))  + boxes[i][0];
-        int ySpine  = static_cast<int>(pose_2d_fast.at<float>(9, 1))  + boxes[i][1];
-        // Pelvis is indexed 11
-        int xPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 0)) + boxes[i][0];
-        int yPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 1)) + boxes[i][1];
-        // Have the position of head as avg of joint 19 and 20.
-        int xHead   = static_cast<int>(pose_2d_fast.at<float>(19, 0)) + boxes[i][0];
-        int yHead   = static_cast<int>(pose_2d_fast.at<float>(19, 1)) + boxes[i][1];
-        xHead /= 2.0f;     
-        yHead /= 2.0f;
-        xHead += (static_cast<int>(pose_2d_fast.at<float>(20, 0)) + boxes[i][0]) / 2.0f;
-        yHead += (static_cast<int>(pose_2d_fast.at<float>(20, 1)) + boxes[i][1]) / 2.0f;
-
-        xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
-        yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
-
-        indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
-        indicationBox[1] = yHead;
-        indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
-        indicationBox[3] = yPelvis;
-
-        // Visualization
-        cv::Mat dect_img = image.clone();
-        
-        // Draw indicationBox
-        cv::rectangle(dect_img, 
-            cv::Point(indicationBox[0], indicationBox[1]), 
-            cv::Point(indicationBox[2], indicationBox[3]), 
-            cv::Scalar(16, 255, 16), 2);  // Green
-        
-        // 绘制光流向量 - 从前一帧中心点到预测位置的黄色线段
-        if (flagFirstFrame == false) 
-        {
-            // 计算光流向量终点
-            cv::Point startPoint(xPrevCenter, yPrevCenter);
-
-            cv::Point endPoint(xPrevCenter + xOptiFlow, yPrevCenter + yOptiFlow);
-            
-            // 绘制黄色线段表示光流方向
-            cv::line(dect_img, startPoint, endPoint, cv::Scalar(16, 233, 233), 2);  // Yellow
-            
-            // Draw center of previous detection
-            cv::circle(dect_img, startPoint, 3, cv::Scalar(16, 16, 233), -1);  // Red 
-        }
-
-        // Draw center current detection
-        cv::circle(dect_img, cv::Point (xCenter, yCenter), 3, cv::Scalar(233, 16, 16), -1);  // Blue
-
-
-        // 显示结果图像 - 调整到800像素高
-        cv::Mat resized_img;
-        float scale = 400.0f / dect_img.rows;
-        cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
-        cv::imshow("Pose Estimation", resized_img);
-        cv::waitKey(20);
-
-        if (xOptiFlow + yOptiFlow > 120)
-            true;
+        // Draw center of previous detection
+        cv::circle(dect_img, startPoint, 3, cv::Scalar(16, 16, 233), -1);  // Red 
     }
+
+    // Draw the center of current detection
+    cv::circle(dect_img, cv::Point(xCenter, yCenter), 3, cv::Scalar(233, 16, 16), -1);  // Blue
+
+    // 显示结果图像 - 调整到400像素高
+    cv::Mat resized_img;
+    float scale = 400.0f / dect_img.rows;
+    cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
+    cv::imshow("Pose Estimation", resized_img);
+    cv::waitKey(20);
+#endif
     // 为上面的输出换行
     putchar('\n');
 
     this->flagFirstFrame = false;
     this->PrevFrame      = image;
+    this->PrevIndiBox    = indicationBox;
     this->xPrevCenter    = xCenter;
     this->yPrevCenter    = yCenter;
     this->momentum[0]    = 0.8 * (xCenter - xPrevCenter) + 0.2 * momentum[0];
     this->momentum[1]    = 0.8 * (yCenter - yPrevCenter) + 0.2 * momentum[1];
-    this->PrevIndiBox    = indicationBox;
     //this->PrevBox        = theTrackedBox;
 
     if (ret == -1)

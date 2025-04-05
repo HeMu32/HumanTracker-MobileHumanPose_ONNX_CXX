@@ -65,3 +65,6 @@ add_custom_command(TARGET yolo_detector POST_BUILD
 message(STATUS "OpenCV库版本: ${OpenCV_VERSION}")
 message(STATUS "OpenCV库: ${OpenCV_LIBS}")
 message(STATUS "OpenCV包含目录: ${OpenCV_INCLUDE_DIRS}")
+
+# 添加调试可视化宏定义
+add_definitions(-D_DEBUG_VISUALIZATOIN)
