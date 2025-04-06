@@ -276,17 +276,33 @@ void HumanTracker::optiFlowThread()
     }
 }
 
-int HumanTracker::UpdateBoundBox_ByTracking (
-        cv::Vec4i &PredectedBox, cv::Vec4i &Box_ToBeUpdate,
-        int &xCenter, int &yCenter,
-        int &xMoVec, int &yMoVec)
+cv::Vec4i HumanTracker::getIndicationBox(const cv::Mat& pose_2d, const cv::Vec4i& box, 
+                                      int& xCenter, int& yCenter)
 {
-    Box_ToBeUpdate = PredectedBox;
-    xCenter = xPrevCenter + xMoVec;
-    yCenter = yPrevCenter + yMoVec;
+    cv::Vec4i indicationBox;
+    // For the output of interfrence result of cv::dnn, spine is indexed 9.
+    int xSpine  = static_cast<int>(pose_2d.at<float>(9, 0))  + box[0];
+    int ySpine  = static_cast<int>(pose_2d.at<float>(9, 1))  + box[1];
+    // Pelvis is indexed 11
+    int xPelvis = static_cast<int>(pose_2d.at<float>(11, 0)) + box[0];
+    int yPelvis = static_cast<int>(pose_2d.at<float>(11, 1)) + box[1];
+    // Have the position of head as avg of joint 19 and 20.
+    int xHead   = static_cast<int>(pose_2d.at<float>(19, 0)) + box[0];
+    int yHead   = static_cast<int>(pose_2d.at<float>(19, 1)) + box[1];
+    xHead /= 2.0f;     
+    yHead /= 2.0f;
+    xHead += (static_cast<int>(pose_2d.at<float>(20, 0)) + box[0]) / 2.0f;
+    yHead += (static_cast<int>(pose_2d.at<float>(20, 1)) + box[1]) / 2.0f;
 
-    this->uiTLCount++;
-    return this->uiTLCount;
+    xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
+    yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
+
+    indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
+    indicationBox[1] = yHead;
+    indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
+    indicationBox[3] = yPelvis;
+
+    return indicationBox;
 }
 
 int HumanTracker::estimate(const cv::Mat& image)
@@ -305,6 +321,7 @@ int HumanTracker::estimate(const cv::Mat& image)
     cv::Vec4i TrackedBox;           // Bound box for the person be tracked, elected from @var boxes 
     cv::Vec4i PredectedBox;         // Predicted bound box, calculated by PrevBox + MoVec
     cv::Vec4i indicationBox;        // For visualization and optical flow calc., not the bound box by yolo.
+    bool flagGoodTrack = false;     // A good track is where yolo detection consistent with MoVec estimation.
     int xOptiFlow   = 0;            // x value of optical flow vector
     int yOptiFlow   = 0;            // y value of optical flow vector
     int xCenter     = 0;            // Weighted center of detected person
@@ -313,8 +330,9 @@ int HumanTracker::estimate(const cv::Mat& image)
     int yMoVec      = 0;            // Weighted motion vector by combining momentum and optical flow est.
     
     // 添加计时功能
+#ifdef _DEBUG_TIMING
     auto start_time = std::chrono::high_resolution_clock::now();
-    
+#endif
     // Start yolo detection for this frame
     {
         std::lock_guard<std::mutex> lock(mtxYolo);
@@ -342,11 +360,11 @@ int HumanTracker::estimate(const cv::Mat& image)
         condVarYolo.wait(lock, [this]{return detection_done;});
         boxes = thread_boxes;
     }
-    
+#ifdef _DEBUG_TIMING
     auto dec_time = std::chrono::high_resolution_clock::now();
     auto durationDec = std::chrono::duration_cast<std::chrono::milliseconds>(dec_time - start_time);
     printf("找人时间: %ld毫秒  ", durationDec.count());
-
+#endif
     // Wait for optical flow estimation to finish
     if (flagFirstFrame == false)
     {
@@ -416,62 +434,51 @@ int HumanTracker::estimate(const cv::Mat& image)
             this->flagFirstFrame = false;
             // Successful detection, reset counter.
             this->uiTLCount      = 0;
+            flagGoodTrack        = true;
+            ret = 0;
         }
         else
         {   // If the cloest box is too far. 
-#ifdef _DEBUG
-        std::cout << "丢失追踪一帧  ";
+            flagGoodTrack = false;
+#ifdef _DEBUG_TRACKING
+            printf ("丢失追踪一帧  ");
 #endif
-            UpdateBoundBox_ByTracking (PredectedBox, TrackedBox, xCenter, yCenter, xMoVec, yMoVec);
         }
     }
-    else if (boxes.empty()) 
+
+    if (flagGoodTrack == false || boxes.empty()) 
     {
-#ifdef _DEBUG
-        std::cout << "未检测到人体  ";
+#ifdef _DEBUG_TRACKING
+        printf ("未检测到人体  ");
 #endif
         ret = 1;
 
         // In case Yolo fails: just use the prediction
-        UpdateBoundBox_ByTracking (PredectedBox, TrackedBox, xCenter, yCenter, xMoVec, yMoVec);
+        TrackedBox = PredectedBox;
+        xCenter = xPrevCenter + xMoVec;
+        yCenter = yPrevCenter + yMoVec;
+
+        this->uiTLCount++;
     }
-    
+#ifdef _DEBUG_TIMING
     start_time = std::chrono::high_resolution_clock::now();
-    
+#endif
     // Estimate pose for the tracked box
     // 估计姿态
     cv::Mat pose_2d_fast, joint_scores_fast;
     std::tie(pose_2d_fast, joint_scores_fast) = 
         pose_estimator.estimatePose2d(image, TrackedBox);
-    
+#ifdef _DEBUG_TIMING
     // 计算并输出执行时间
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     printf("骨骼时间: %ld毫秒  ", duration.count());
-
+#endif
     // Calculate detection indication box (h: head to pelvis w: 1/4h)
     // and center (avg of the head, spine and pelvis)
-    // For the output of interfrence result of cv::dnn, spine is indexed 9.
-    int xSpine  = static_cast<int>(pose_2d_fast.at<float>(9, 0))  + TrackedBox[0];
-    int ySpine  = static_cast<int>(pose_2d_fast.at<float>(9, 1))  + TrackedBox[1];
-    // Pelvis is indexed 11
-    int xPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 0)) + TrackedBox[0];
-    int yPelvis = static_cast<int>(pose_2d_fast.at<float>(11, 1)) + TrackedBox[1];
-    // Have the position of head as avg of joint 19 and 20.
-    int xHead   = static_cast<int>(pose_2d_fast.at<float>(19, 0)) + TrackedBox[0];
-    int yHead   = static_cast<int>(pose_2d_fast.at<float>(19, 1)) + TrackedBox[1];
-    xHead /= 2.0f;     
-    yHead /= 2.0f;
-    xHead += (static_cast<int>(pose_2d_fast.at<float>(20, 0)) + TrackedBox[0]) / 2.0f;
-    yHead += (static_cast<int>(pose_2d_fast.at<float>(20, 1)) + TrackedBox[1]) / 2.0f;
+    indicationBox = getIndicationBox (pose_2d_fast, TrackedBox, xCenter, yCenter);
 
-    xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
-    yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
 
-    indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
-    indicationBox[1] = yHead;
-    indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
-    indicationBox[3] = yPelvis;
 #ifdef _DEBUG_VISUALIZATOIN
     // Visualization
     cv::Mat dect_img = image.clone();
@@ -480,7 +487,8 @@ int HumanTracker::estimate(const cv::Mat& image)
     cv::rectangle(dect_img, 
         cv::Point(TrackedBox[0], TrackedBox[1]), 
         cv::Point(TrackedBox[2], TrackedBox[3]), 
-        cv::Scalar(233, 16, 16), 2);  // Blue
+        flagGoodTrack ? cv::Scalar(233, 16, 16) : cv::Scalar(16, 16, 233), // Blue for good track, red for opposite
+        2);  // Blue
         
     // Draw indicationBox
     cv::rectangle(dect_img, 
@@ -513,8 +521,9 @@ int HumanTracker::estimate(const cv::Mat& image)
     cv::waitKey(20);
 #endif
     // 为上面的输出换行
+#ifdef _DEBUG_TIMING
     putchar('\n');
-
+#endif
     this->PrevFrame      = image;
     this->PrevBox        = TrackedBox;
     this->PrevIndiBox    = indicationBox;

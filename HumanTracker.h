@@ -54,10 +54,9 @@ private:
     cv::Vec4i   PrevIndiBox;    // Indication box of previous picture, xyxy, for visualization and optical flow tracking.
     unsigned    uiTLCount = 0;  // Counter for using momentum-opti flow bound box. Hits MAX_TL_CNT is considered to be totally lost tracking.
     
-    int UpdateBoundBox_ByTracking (
-        cv::Vec4i &PredectedBox, cv::Vec4i &Box_ToBeUpdate,
-        int &xCenter, int &yCenter,
-        int &xMoVec, int &yMoVec);
+    // 计算人体关键点和指示框
+    cv::Vec4i getIndicationBox(const cv::Mat& pose_2d, const cv::Vec4i& box, 
+                           int& xCenter, int& yCenter);
 
 private:
     /// @brief Yolo service thread, for parallel computing with optical flow
