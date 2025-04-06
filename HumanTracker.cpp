@@ -336,6 +336,13 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     int xMoVec      = 0;            // Weighted motion vector by combining momentum and optical flow est.
     int yMoVec      = 0;            // Weighted motion vector by combining momentum and optical flow est.
     
+    if (flagFirstFrame == true)
+    {   // Filling init info into prev info to initialize tracking position
+        this->PrevBox     = this->InitBox;
+        this->xPrevCenter = this->xInitCenter;
+        this->yPrevCenter = this->yInitCenter;
+    }
+    
     // 添加计时功能
 #ifdef _DEBUG_TIMING
     auto start_time = std::chrono::high_resolution_clock::now();

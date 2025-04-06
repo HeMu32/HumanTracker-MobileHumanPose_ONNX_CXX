@@ -47,11 +47,17 @@ private:
     // of previous frame available. Initialized to be true.
     bool flagFirstFrame = true;
 
+    // Initial info for trcking. Also used to restart when track lost.
+    /// @todo Program a setter for these init values.
+    cv::Vec4i   InitBox     = {500, 192, 540, 256};     //  This init val is for debugging
+    int         xInitCenter = 520;                      //  This init val is for debugging
+    int         yInitCenter = 216;                      //  This init val is for debugging
+
     // Keep info of previous picture to preform optical flow estimation
     cv::Mat     PrevFrame;          // Keep previous frame to estimate optical flow.
-    cv::Vec4i   PrevBox     = {600, 216, 700, 256}; // Bound box (by yolo) on the previous frame. xyxy. This init val is for debugging
-    int         xPrevCenter = 640;  // Weighted center of the person, not the center of the box!! This init val is for debugging
-    int         yPrevCenter = 233;  // Weighted center of the person, not the center of the box!! This init val is for debugging
+    cv::Vec4i   PrevBox;            // Bound box (by yolo) on the previous frame. xyxy.
+    int         xPrevCenter;        // Weighted center of the person, not the center of the box!!
+    int         yPrevCenter;        // Weighted center of the person, not the center of the box!!
     cv::Vec4i   PrevIndiBox;        // Indication box of previous picture, xyxy, for visualization and optical flow tracking.
     unsigned    uiTLCount   = 0;    // Counter for using momentum-opti flow bound box. Hits uiMaxTLCnt is considered to be totally lost tracking.
     unsigned    uiMaxTLCnt  = 12;   // Tolerence of using momentum-opti flow bound box.
