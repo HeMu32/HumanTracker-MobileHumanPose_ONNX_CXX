@@ -307,6 +307,13 @@ cv::Vec4i HumanTracker::getIndicationBox(const cv::Mat& pose_2d, const cv::Vec4i
 
 int HumanTracker::estimate(const cv::Mat& image)
 {
+    int iNone;
+    cv::Vec4i vecNone;
+    return estimate(image, iNone, iNone, vecNone);
+}
+
+int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRet, cv::Vec4i &indiBoxRet)
+{
     int ret = 0;
     if (image.empty())
     {
@@ -524,6 +531,7 @@ int HumanTracker::estimate(const cv::Mat& image)
 #ifdef _DEBUG_TIMING
     putchar('\n');
 #endif
+    // Update previous frame info
     this->PrevFrame      = image;
     this->PrevBox        = TrackedBox;
     this->PrevIndiBox    = indicationBox;
@@ -531,7 +539,10 @@ int HumanTracker::estimate(const cv::Mat& image)
     this->yPrevCenter    = yCenter;
     this->momentum[0]    = 0.4 * (xCenter - xPrevCenter) + 0.6 * momentum[0];
     this->momentum[1]    = 0.4 * (yCenter - yPrevCenter) + 0.6 * momentum[1];
-    //this->PrevBox        = theTrackedBox;
+    // Handle return value
+    xCenterRet = xCenter;
+    yCenterRet = yCenter;
+    indiBoxRet = indicationBox;
 
     if (uiTLCount > uiMaxTLCnt)
     {

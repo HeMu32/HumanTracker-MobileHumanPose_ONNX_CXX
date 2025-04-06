@@ -32,6 +32,8 @@ public:
     ///     @retval     or < 0 if an error is encountered.
     ///     @retval     -1 TRACK LOST
     int estimate(const cv::Mat& image);
+
+    int estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRet, cv::Vec4i &indiBoxRet);
     
 private:
     // Models employed here
