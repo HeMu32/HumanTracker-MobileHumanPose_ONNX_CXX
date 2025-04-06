@@ -515,7 +515,7 @@ int HumanTracker::estimate(const cv::Mat& image)
 
     // 显示结果图像 - 调整到400像素高
     cv::Mat resized_img;
-    float scale = 400.0f / dect_img.rows;
+    float scale = 640.0f / dect_img.rows;
     cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
     cv::imshow("Pose Estimation", resized_img);
     cv::waitKey(20);
@@ -529,11 +529,11 @@ int HumanTracker::estimate(const cv::Mat& image)
     this->PrevIndiBox    = indicationBox;
     this->xPrevCenter    = xCenter;
     this->yPrevCenter    = yCenter;
-    this->momentum[0]    = 0.8 * (xCenter - xPrevCenter) + 0.2 * momentum[0];
-    this->momentum[1]    = 0.8 * (yCenter - yPrevCenter) + 0.2 * momentum[1];
+    this->momentum[0]    = 0.4 * (xCenter - xPrevCenter) + 0.6 * momentum[0];
+    this->momentum[1]    = 0.4 * (yCenter - yPrevCenter) + 0.6 * momentum[1];
     //this->PrevBox        = theTrackedBox;
 
-    if (uiTLCount > MAX_TL_CNT)
+    if (uiTLCount > uiMaxTLCnt)
     {
         /// @todo re-initialize prev frame info
         /// @todo check if there's any other need to be reset

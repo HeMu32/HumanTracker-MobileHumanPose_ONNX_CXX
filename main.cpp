@@ -57,7 +57,9 @@ int main()
         if (!image.empty())
         {
             // 处理图像
-            detector.estimate(image);
+            int ret = detector.estimate(image);
+            if (ret == -1)
+                printf ("TRACK LOST\n");
         }
     }
     

@@ -68,3 +68,4 @@ message(STATUS "OpenCV包含目录: ${OpenCV_INCLUDE_DIRS}")
 
 # 添加调试可视化宏定义
 add_definitions(-D_DEBUG_VISUALIZATOIN)
+#add_definitions(-D_DEBUG_TIMING)
