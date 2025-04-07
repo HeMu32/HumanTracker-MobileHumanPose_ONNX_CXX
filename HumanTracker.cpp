@@ -297,9 +297,9 @@ cv::Vec4i HumanTracker::getIndicationBox(const cv::Mat& pose_2d, const cv::Vec4i
     xCenter = (xHead + xSpine + xPelvis) / 3.0f;    // Weighted center of detected person
     yCenter = (yHead + ySpine + yPelvis) / 3.0f;    // Weighted center of detected person
 
-    indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / 8) : (xPelvis - (yPelvis - yHead) / 10);
+    indicationBox[0] = xHead < xPelvis ? (xHead - (yPelvis - yHead) / (2 * INDIC_BOX_ASP)) : (xPelvis - (yPelvis - yHead) / (2 * INDIC_BOX_ASP));
     indicationBox[1] = yHead;
-    indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / 8) : (xHead + (yPelvis - yHead) / 10);
+    indicationBox[2] = xHead < xPelvis ? (xPelvis + (yPelvis - yHead) / (2 * INDIC_BOX_ASP)) : (xHead + (yPelvis - yHead) / (2 * INDIC_BOX_ASP));
     indicationBox[3] = yPelvis;
 
     return indicationBox;
@@ -488,12 +488,12 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     printf("骨骼时间: %ld毫秒  ", duration.count());
 #endif
-    // Calculate detection indication box (h: head to pelvis w: 1/4h)
+    // Calculate detection indication box
     // and center (avg of the head, spine and pelvis)
     indicationBox = getIndicationBox (pose_2d_fast, TrackedBox, xCenter, yCenter);
 
 
-#ifdef _DEBUG_VISUALIZATOIN
+#ifdef _DEBUG_VISUALIZATION
     // Visualization
     cv::Mat dect_img = image.clone();
     

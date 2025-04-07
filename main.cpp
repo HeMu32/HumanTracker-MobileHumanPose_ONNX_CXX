@@ -22,7 +22,7 @@ int main()
     
     
     // 遍历D:\VideoCache目录中的所有jpg文件
-    std::string path = "D:\\VideoCache\\*.jpg";
+    std::string path = "D:\\VideoCache\\Clip4\\*.jpg";
     std::vector<cv::String> filenames;
     cv::glob(path, filenames, false);
     

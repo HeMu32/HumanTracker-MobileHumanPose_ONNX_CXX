@@ -14,6 +14,7 @@
 #include "mobileHumanPose.h"
 
 
+#define INDIC_BOX_ASP 2
 class HumanTracker
 {
 public:
@@ -49,7 +50,7 @@ private:
 
     // Initial info for trcking. Also used to restart when track lost.
     /// @todo Program a setter for these init values.
-    cv::Vec4i   InitBox     = {500, 192, 540, 256};     //  This init val is for debugging
+    cv::Vec4i   InitBox     = {480, 192, 560, 256};     //  This init val is for debugging
     int         xInitCenter = 520;                      //  This init val is for debugging
     int         yInitCenter = 216;                      //  This init val is for debugging
 
@@ -60,9 +61,19 @@ private:
     int         yPrevCenter;        // Weighted center of the person, not the center of the box!!
     cv::Vec4i   PrevIndiBox;        // Indication box of previous picture, xyxy, for visualization and optical flow tracking.
     unsigned    uiTLCount   = 0;    // Counter for using momentum-opti flow bound box. Hits uiMaxTLCnt is considered to be totally lost tracking.
-    unsigned    uiMaxTLCnt  = 12;   // Tolerence of using momentum-opti flow bound box.
+    unsigned    uiMaxTLCnt  = 12;   // Tolerence of using momentum-opti flow bound box. 
+    /// @todo Expect to have a setter for @a uiMaxTLCnt
 
-    // 计算人体关键点和指示框
+    // Calculate detection indication box (h: head to pelvis w: 1/4h)
+    // and center (avg of the head, spine and pelvis)
+    
+    /// @brief          Calculate detection indication box, box asp defined by @a INDIC_BOX_ASP
+    ///                 and center (avg of the head, spine and pelvis)
+    /// @param pose_2d 
+    /// @param box 
+    /// @param xCenter 
+    /// @param yCenter 
+    /// @return 
     cv::Vec4i getIndicationBox(const cv::Mat& pose_2d, const cv::Vec4i& box, 
                            int& xCenter, int& yCenter);
 
