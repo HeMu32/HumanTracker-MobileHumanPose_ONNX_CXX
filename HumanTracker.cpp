@@ -1,7 +1,7 @@
 #include "HumanTracker.h"
 #include <iostream>
 
-HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath)
+HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath, int xFrameSize, int yFrameSize)
     : pose_estimator(poseModelPath)  // 直接在初始化列表中构造
     , yolo_model(yoloModelPath, 0.3, 0.3, 0.4)  // 直接在初始化列表中构造
     , detection_done(false)
@@ -11,21 +11,22 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
 {
     try {
         // 检查模型是否成功加载
-        if (pose_estimator.isModelEmpty() || yolo_model.isModelEmpty()) {
+        if (pose_estimator.isModelEmpty() || yolo_model.isModelEmpty()) 
+        {
             throw std::runtime_error("模型加载失败");
         }
         
         // 初始化完成
         std::cout << "HumanTracker初始化成功" << std::endl;
     }
-    catch (const std::runtime_error& e) {
-        // 捕获并重新抛出异常，添加更多上下文信息
+    catch (const std::runtime_error& e) 
+    {   // 捕获并重新抛出异常，添加更多上下文信息
         std::string errorMsg = "HumanTracker初始化失败: ";
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
-    catch (const std::exception& e) {
-        // 捕获其他可能的异常
+    catch (const std::exception& e) 
+    {   // 捕获其他可能的异常
         std::string errorMsg = "HumanTracker初始化时发生未知错误: ";
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
@@ -326,6 +327,43 @@ cv::Vec4i HumanTracker::getIndicationBox(const cv::Mat& pose_2d, const cv::Vec4i
     return indicationBox;
 }
 
+void HumanTracker::setInitPos(const cv::Vec4i& initBox, int xCenter, int yCenter)
+{
+    // 更新初始跟踪位置
+    this->InitBox = initBox;
+    this->xInitCenter = xCenter;
+    this->yInitCenter = yCenter;
+    
+    // 如果是第一帧，也更新当前跟踪位置
+    if (flagFirstFrame)
+    {
+        this->PrevBox = initBox;
+        this->xPrevCenter = xCenter;
+        this->yPrevCenter = yCenter;
+    }
+}
+
+void HumanTracker::setFrameSize(int xSize, int ySize)
+{
+    // 检查尺寸是否有效
+    if (xSize <= 0 || ySize <= 0)
+    {
+#ifdef _DEBUG
+        std::cout << "HumanTracker::setFrameSize 无效的帧尺寸: " 
+                  << xSize << "x" << ySize << std::endl;
+#endif
+        return;
+    }
+    
+    // 更新帧尺寸
+    this->xFrameSize = xSize;
+    this->yFrameSize = ySize;
+    
+    // 根据新的帧尺寸调整初始跟踪位置
+    // 这里可以选择是否自动调整初始位置，这里我选择不自动调整
+    // 如果需要自动调整，可以根据新旧尺寸比例来缩放InitBox和初始中心点
+}
+
 int HumanTracker::estimate(const cv::Mat& image)
 {
     int iNone;
@@ -342,6 +380,18 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         std::cout << "HumanTracker::estimate 输入图像为空" << std::endl;
 #endif
         ret = -1;
+        return ret;
+    }
+    
+    // 检查输入图像尺寸
+    if (image.cols != xFrameSize || image.rows != yFrameSize)
+    {
+#ifdef _DEBUG
+        std::cout << "HumanTracker::estimate 输入图像尺寸不匹配 预期: " 
+                  << xFrameSize << "x" << yFrameSize 
+                  << " 实际: " << image.cols << "x" << image.rows << std::endl;
+#endif
+        ret = -2;
         return ret;
     }
     
@@ -419,12 +469,9 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     PredectedBox[2] = PrevBox[2] + xMoVec;
     PredectedBox[3] = PrevBox[3] + yMoVec;
 
-    /// @todo May introduce a logic in case track lost
     /// @todo Temporal correlation to shallow for now, may keep deeper temporal box info
     if (boxes.size() >= 1)
     {   // Process tracking of boxes here
-        /// @todo   Obtain a initial value for data of previous frame,  
-        ///         for selection of the person to track.
         /// @todo   Obtain another method that detects person only and returns boxes, 
         ///         in convience of user selectig the person to track in the front end
 
@@ -574,7 +621,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
 
     if (uiTLCount > uiMaxTLCnt)
     {
-        /// @todo re-initialize prev frame info
+        /// re-initialize prev frame info
         /// @todo check if there's any other need to be reset
         this->PrevFrame      = cv::Mat();
         this->PrevBox        = {0, 0, 0, 0};

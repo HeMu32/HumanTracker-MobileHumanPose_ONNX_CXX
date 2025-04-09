@@ -15,16 +15,19 @@
 int main()
 {
     // 创建PoseDetector实例
-    HumanTracker detector("mobile_human_pose_working_well_256x256.onnx", "yolofastv2.onnx");
+    HumanTracker detector("mobile_human_pose_working_well_256x256.onnx", "yolofastv2.onnx", 0, 0);
     
     // 初始化检测线程
     detector.initThreads();
     
     
     // 遍历D:\VideoCache目录中的所有jpg文件
-    std::string path = "D:\\VideoCache\\Clip5\\*.jpg";
+    std::string path = "D:\\VideoCache\\*.jpg";
     std::vector<cv::String> filenames;
     cv::glob(path, filenames, false);
+
+    detector.setFrameSize (800, 450);   // Predefined size that corresponds to the inputs
+    detector.setInitPos (cv::Vec4i(480, 192, 560, 256), 520, 216);
     
     // 按文件名排序（假设文件名包含数字序号）
     std::sort(filenames.begin(), filenames.end(), [](const cv::String& a, const cv::String& b) {
