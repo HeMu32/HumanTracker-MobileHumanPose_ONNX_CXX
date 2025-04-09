@@ -14,6 +14,11 @@ class yolo_fast
 public:
 	yolo_fast(std::string modelpath, float objThreshold, float confThreshold, float nmsThreshold);
 
+	// 在yolo_fast类中添加
+	bool isModelEmpty() const {
+		return net.empty();
+	}
+	
 	/// @brief 				Detect via yolo
 	/// @param frame 		Picture
 	/// @param boxesResult 	Detected boxes, xyxy

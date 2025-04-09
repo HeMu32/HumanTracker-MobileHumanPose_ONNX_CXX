@@ -14,7 +14,7 @@
 #include "mobileHumanPose.h"
 
 
-#define INDIC_BOX_ASP 2
+#define INDIC_BOX_ASP 2.5
 class HumanTracker
 {
 public:
@@ -56,10 +56,11 @@ private:
 
     // Keep info of previous picture to preform optical flow estimation
     cv::Mat     PrevFrame;          // Keep previous frame to estimate optical flow.
+    /// @todo Aggriagate followings into a single data structure
     cv::Vec4i   PrevBox;            // Bound box (by yolo) on the previous frame. xyxy.
+    cv::Vec4i   PrevIndiBox;        // Indication box of previous picture, xyxy, for visualization and optical flow tracking.
     int         xPrevCenter;        // Weighted center of the person, not the center of the box!!
     int         yPrevCenter;        // Weighted center of the person, not the center of the box!!
-    cv::Vec4i   PrevIndiBox;        // Indication box of previous picture, xyxy, for visualization and optical flow tracking.
     unsigned    uiTLCount   = 0;    // Counter for using momentum-opti flow bound box. Hits uiMaxTLCnt is considered to be totally lost tracking.
     unsigned    uiMaxTLCnt  = 12;   // Tolerence of using momentum-opti flow bound box. 
     /// @todo Expect to have a setter for @a uiMaxTLCnt

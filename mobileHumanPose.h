@@ -20,6 +20,9 @@ public:
                    const cv::Vec2f &focal_length = cv::Vec2f(1500, 1500), 
                    const cv::Vec2f &principal_points = cv::Vec2f(1280/2, 720/2));
     
+    bool isModelEmpty() const {
+    return net.empty();
+    }
     // 重载调用运算符，方便直接调用对象进行姿态估计
     std::tuple<cv::Mat, cv::Mat, cv::Mat, cv::Mat> operator()(const cv::Mat &image, const cv::Vec4i &bbox, float abs_depth = 1.0);
     

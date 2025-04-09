@@ -11,6 +11,11 @@ yolo_fast::yolo_fast(std::string modelpath, float obj_Threshold, float conf_Thre
 	while (std::getline(ifs, line)) this->classes.push_back(line);
 	this->num_class = this->classes.size();
 	this->net = cv::dnn::readNet(modelpath);
+	
+	// 检查模型是否成功加载
+	if (this->net.empty()) {
+		throw std::runtime_error("Failed to load Yolo model: " + modelpath);
+	}
 }
 
 void yolo_fast::drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame)   // Draw the predicted bounding box

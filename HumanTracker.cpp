@@ -2,13 +2,34 @@
 #include <iostream>
 
 HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath)
-    : pose_estimator(poseModelPath)
-    , yolo_model(yoloModelPath, 0.3, 0.3, 0.4)
+    : pose_estimator(poseModelPath)  // 直接在初始化列表中构造
+    , yolo_model(yoloModelPath, 0.3, 0.3, 0.4)  // 直接在初始化列表中构造
     , detection_done(false)
     , thread_running(false)
     , yolo_thread(nullptr)
+    , optiflow_thread(nullptr)
 {
-    // 初始化完成
+    try {
+        // 检查模型是否成功加载
+        if (pose_estimator.isModelEmpty() || yolo_model.isModelEmpty()) {
+            throw std::runtime_error("模型加载失败");
+        }
+        
+        // 初始化完成
+        std::cout << "HumanTracker初始化成功" << std::endl;
+    }
+    catch (const std::runtime_error& e) {
+        // 捕获并重新抛出异常，添加更多上下文信息
+        std::string errorMsg = "HumanTracker初始化失败: ";
+        errorMsg += e.what();
+        throw std::runtime_error(errorMsg);
+    }
+    catch (const std::exception& e) {
+        // 捕获其他可能的异常
+        std::string errorMsg = "HumanTracker初始化时发生未知错误: ";
+        errorMsg += e.what();
+        throw std::runtime_error(errorMsg);
+    }
 }
 
 HumanTracker::~HumanTracker()
