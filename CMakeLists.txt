@@ -36,15 +36,15 @@ add_custom_command(TARGET yolo_detector POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/img"
         "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/img"
-    COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/yolofastv2.onnx"
-        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/yolofastv2.onnx"
-    COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/coco.names"
-        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/coco.names"
-    COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/mobile_human_pose_working_well_256x256.onnx"
-        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/mobile_human_pose_working_well_256x256.onnx"
+#    COMMAND ${CMAKE_COMMAND} -E copy
+#        "${CMAKE_SOURCE_DIR}/models/yolofastv2.onnx"
+#        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/yolofastv2.onnx"
+#    COMMAND ${CMAKE_COMMAND} -E copy
+#        "${CMAKE_SOURCE_DIR}/coco.names"
+#        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/coco.names"
+#    COMMAND ${CMAKE_COMMAND} -E copy
+#        "${CMAKE_SOURCE_DIR}/models/mobile_human_pose_working_well_256x256.onnx"
+#        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/mobile_human_pose_working_well_256x256.onnx"
 )
 
 # 确保将coco.names复制到可执行文件所在的目录
@@ -54,10 +54,10 @@ add_custom_command(TARGET yolo_detector POST_BUILD
         "${CMAKE_SOURCE_DIR}/coco.names"
         "$<TARGET_FILE_DIR:yolo_detector>/coco.names"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/yolofastv2.onnx"
+        "${CMAKE_SOURCE_DIR}/models/yolofastv2.onnx"
         "$<TARGET_FILE_DIR:yolo_detector>/yolofastv2.onnx"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/mobile_human_pose_working_well_256x256.onnx"
+        "${CMAKE_SOURCE_DIR}/models/mobile_human_pose_working_well_256x256.onnx"
         "$<TARGET_FILE_DIR:yolo_detector>/mobile_human_pose_working_well_256x256.onnx"
 )
 

@@ -12,7 +12,7 @@ class yolo_fast_v2():
                            dtype=np.float32).reshape(len(self.stride), self.anchor_num, 2)
         self.inpWidth = 352
         self.inpHeight = 352
-        self.net = cv2.dnn.readNet('model.onnx')
+        self.net = cv2.dnn.readNet('models/model.onnx')
         self.confThreshold = confThreshold
         self.nmsThreshold = nmsThreshold
         self.objThreshold = objThreshold

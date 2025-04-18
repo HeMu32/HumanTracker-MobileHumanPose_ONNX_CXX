@@ -15,7 +15,7 @@
 int main()
 {
     // 创建PoseDetector实例
-    HumanTracker detector("mobile_human_pose_working_well_256x256.onnx", "yolofastv2.onnx", 0, 0);
+    HumanTracker detector("models/mobile_human_pose_working_well_256x256.onnx", "models/yolofastv2.onnx", 0, 0);
     
     // 初始化检测线程
     detector.initThreads();
