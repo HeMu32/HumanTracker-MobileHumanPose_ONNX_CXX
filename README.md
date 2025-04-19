@@ -1,4 +1,6 @@
-# 尝试使用C++推理Mobile Human Pose
+# 使用MHP, Yolo-FastestV2, OpenCV实现的简单人物追踪程序
+
+# 尝试使用C++ / cv::dnn 推理Mobile Human Pose
 
 原方案请参考: https://github.com/HeMu32/ONNX-Mobile-Human-Pose-3D
 
