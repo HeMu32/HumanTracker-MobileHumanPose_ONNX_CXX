@@ -4,3 +4,7 @@ build/
 .vscodeCfgBack.7z
 
 **/*.make
+
+**/*.jpg
+**/*.jpeg
+**/*.png
