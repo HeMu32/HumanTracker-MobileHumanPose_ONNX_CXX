@@ -31,6 +31,9 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
+
+    this->xFrameSize = xFrameSize;
+    this->yFrameSize = yFrameSize;
 }
 
 HumanTracker::~HumanTracker()
@@ -384,6 +387,8 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     }
     
     // 检查输入图像尺寸
+    /// @todo obtain valid frame size info
+/*      For convience do not perform frame size now
     if (image.cols != xFrameSize || image.rows != yFrameSize)
     {
 #ifdef _DEBUG
@@ -394,7 +399,8 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         ret = -2;
         return ret;
     }
-    
+*/
+
     std::vector<cv::Vec4i> boxes;   // Bound box of detected people by Yolo
     cv::Vec4i TrackedBox;           // Bound box for the person be tracked, elected from @var boxes 
     cv::Vec4i PredectedBox;         // Predicted bound box, calculated by PrevBox + MoVec
