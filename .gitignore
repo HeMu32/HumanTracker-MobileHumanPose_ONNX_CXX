@@ -8,3 +8,5 @@ build/
 **/*.jpg
 **/*.jpeg
 **/*.png
+
+CMakeLists.txt
