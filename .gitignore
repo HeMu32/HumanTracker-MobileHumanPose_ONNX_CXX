@@ -4,5 +4,3 @@ build/
 .vscodeCfgBack.7z
 
 **/*.make
-
-**/*.jpg
