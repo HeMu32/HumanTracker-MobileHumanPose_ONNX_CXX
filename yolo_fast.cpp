@@ -6,9 +6,23 @@ yolo_fast::yolo_fast(std::string modelpath, float obj_Threshold, float conf_Thre
 	this->confThreshold = conf_Threshold;
 	this->nmsThreshold = nms_Threshold;
 
+	// 检查 coco.names 文件是否存在
 	std::ifstream ifs(this->classesFile.c_str());
+	if (!ifs.is_open()) {
+		throw std::runtime_error("Failed to open classes file: " + this->classesFile + 
+			". Please ensure the file exists in the working directory.");
+	}
+	
 	std::string line;
 	while (std::getline(ifs, line)) this->classes.push_back(line);
+	ifs.close();  // 显式关闭文件
+	
+	// 检查是否成功读取了类别
+	if (this->classes.empty()) {
+		throw std::runtime_error("No classes loaded from: " + this->classesFile + 
+			". File may be empty or corrupted.");
+	}
+	
 	this->num_class = this->classes.size();
 	this->net = cv::dnn::readNet(modelpath);
 	
