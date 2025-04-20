@@ -90,7 +90,6 @@ void HumanTracker::initThreads()
 
 void HumanTracker::yoloDetectionThread()
 {
-    printf ("Yolo th running\n");
     while (thread_running)
     {
         std::unique_lock<std::mutex> lock(mtxYolo);
@@ -627,7 +626,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     cv::Mat resized_img;
     float scale = 640.0f / dect_img.rows;
     cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
-    cv::imshow("Pose Estimation", resized_img);
+    cv::imshow("Track result", resized_img);
     cv::waitKey(20);
 #endif
     // 为上面的输出换行
