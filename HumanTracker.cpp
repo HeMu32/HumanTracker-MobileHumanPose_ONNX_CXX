@@ -4,10 +4,11 @@
 HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath, int xFrameSize, int yFrameSize)
     : pose_estimator(poseModelPath)  // 直接在初始化列表中构造
     , yolo_model(yoloModelPath, 0.3, 0.3, 0.4)  // 直接在初始化列表中构造
-    , detection_done(false)
+    , detection_done(true)  // 修改为 true，确保线程初始状态正确
     , thread_running(false)
     , yolo_thread(nullptr)
     , optiflow_thread(nullptr)
+    , optiflow_done(true)  // 确保初始状态正确
 {
     try {
         // 检查模型是否成功加载
@@ -15,6 +16,13 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
         {
             throw std::runtime_error("模型加载失败");
         }
+        
+        // 设置帧尺寸
+        this->xFrameSize = xFrameSize;
+        this->yFrameSize = yFrameSize;
+        
+        // 初始化线程
+        initThreads();
         
         // 初始化完成
         std::cout << "HumanTracker初始化成功" << std::endl;
@@ -31,9 +39,6 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
-
-    this->xFrameSize = xFrameSize;
-    this->yFrameSize = yFrameSize;
 }
 
 HumanTracker::~HumanTracker()
@@ -43,12 +48,14 @@ HumanTracker::~HumanTracker()
     
     {   // 唤醒YOLO线程以便退出
         std::lock_guard<std::mutex> lock(mtxYolo);
+        thread_image = cv::Mat(); // 清空图像
         detection_done = true;
     }
     condVarYolo.notify_one();
     
     {   // 唤醒光流线程以便退出
         std::lock_guard<std::mutex> lock(mtxOptiFlow);
+        thread_prevFrame = cv::Mat(); // 清空图像
         optiflow_done = true;
     }
     condVarOptiFlow.notify_one();
@@ -58,13 +65,17 @@ HumanTracker::~HumanTracker()
     {
         yolo_thread->join();
         delete yolo_thread;
+        yolo_thread = nullptr;
     }
     
     if (optiflow_thread && optiflow_thread->joinable())
     {
         optiflow_thread->join();
         delete optiflow_thread;
+        optiflow_thread = nullptr;
     }
+    
+    std::cout << "HumanTracker已销毁" << std::endl;
 }
 
 void HumanTracker::initThreads()
@@ -79,6 +90,7 @@ void HumanTracker::initThreads()
 
 void HumanTracker::yoloDetectionThread()
 {
+    printf ("Yolo th running\n");
     while (thread_running)
     {
         std::unique_lock<std::mutex> lock(mtxYolo);
@@ -383,6 +395,16 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         std::cout << "HumanTracker::estimate 输入图像为空" << std::endl;
 #endif
         ret = -1;
+        return ret;
+    }
+    
+    // 检查线程是否已初始化
+    if (!thread_running || yolo_thread == nullptr || optiflow_thread == nullptr)
+    {
+#ifdef _DEBUG
+        std::cout << "HumanTracker::estimate threads not initialized" << std::endl;
+#endif
+        ret = -3; // 使用新的错误码表示线程未初始化
         return ret;
     }
     
