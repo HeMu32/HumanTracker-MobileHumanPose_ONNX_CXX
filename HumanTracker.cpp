@@ -270,7 +270,8 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
         }
         
         // 显示光流追踪结果
-        cv::resize(flowVis, flowVis, cv::Size(), 0.5, 0.5);
+        float scale = 400.0f / flowVis.rows;
+        cv::resize(flowVis, flowVis, cv::Size(), scale, scale, cv::INTER_LINEAR);
         cv::imshow("Optical Flow Tracking", flowVis);
         cv::waitKey(1);
     }
@@ -647,7 +648,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
 
     // 显示结果图像 - 调整到400像素高
     cv::Mat resized_img;
-    float scale = 640.0f / dect_img.rows;
+    float scale = 400.0f / dect_img.rows;
     cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
     cv::imshow("Track result", resized_img);
     cv::waitKey(20);
