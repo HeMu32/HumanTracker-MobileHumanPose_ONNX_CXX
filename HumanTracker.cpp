@@ -1,5 +1,4 @@
 #include "HumanTracker.h"
-#include <iostream>
 
 HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath, int xFrameSize, int yFrameSize)
     : pose_estimator(poseModelPath)  // 直接在初始化列表中构造

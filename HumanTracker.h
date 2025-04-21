@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <cstdio>
 
 #include "yolo_fast.h"
 #include "mobileHumanPose.h"
