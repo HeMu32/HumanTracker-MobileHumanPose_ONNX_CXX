@@ -554,7 +554,13 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         }
     }
 
-    if (flagGoodTrack == false || boxes.empty()) 
+    
+    if (boxes.empty() && flagFirstFrame)
+    {   /// Try to differenciate bad track and totally no detection
+        ret = -2;
+        return ret;
+    }
+    else if (flagGoodTrack == false || boxes.empty()) 
     {
 #ifdef _DEBUG_TRACKING
         printf ("未检测到人体  ");
