@@ -505,9 +505,9 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         this->uiYoloDec++;
         if (this->uiYoloDec > YOLO_CONFRIM_DEC_FRAME_THRESH)
             this->uiYoloDec = YOLO_CONFRIM_DEC_FRAME_THRESH;    // prevent overflow
-//#ifdef _DEBUG_TRACKING
+#ifdef _DEBUG_TRACKING
         printf ("Accu. dec frames: %u\n", uiYoloDec);
-//#endif
+#endif
 
         // Score is to estimate how likely a bound box is the tracked one in prev frame
         // Score is the quare distance of the two diagonal points of detected boxes 
