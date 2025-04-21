@@ -132,13 +132,13 @@ private:
     void yoloDetectionThread();
 
     // Virables related to yoloDetectionThread()
-    std::mutex mtxYolo;
+    std::mutex  mtxYolo;
+    bool        thread_running;
+    bool        detection_done;
+    cv::Mat     thread_image;
+    std::vector<cv::Vec4i>  thread_boxes;
     std::condition_variable condVarYolo;
-    bool detection_done;
-    cv::Mat thread_image;
-    std::vector<cv::Vec4i> thread_boxes;
-    std::thread* yolo_thread;
-    bool thread_running;
+    std::thread            *yolo_thread;
 
 private:
     // This block: Optical flow realted methods and params. 

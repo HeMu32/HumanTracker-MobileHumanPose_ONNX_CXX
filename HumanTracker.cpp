@@ -402,7 +402,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
 #ifdef _DEBUG
         std::cout << "HumanTracker::estimate threads not initialized" << std::endl;
 #endif
-        ret = -3; // 使用新的错误码表示线程未初始化
+        ret = -3; // 表示线程未初始化
         return ret;
     }
     
@@ -495,7 +495,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     PredectedBox[2] = PrevBox[2] + xMoVec;
     PredectedBox[3] = PrevBox[3] + yMoVec;
 
-    /// @todo Temporal correlation to shallow for now, may keep deeper temporal box info
+    /// @todo Temporal correlation too shallow for now, may keep deeper temporal box info
     if (boxes.size() >= 1)
     {   // Process tracking of boxes here
         /// @todo   Obtain another method that detects person only and returns boxes, 
@@ -505,9 +505,9 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         this->uiYoloDec++;
         if (this->uiYoloDec > YOLO_CONFRIM_DEC_FRAME_THRESH)
             this->uiYoloDec = YOLO_CONFRIM_DEC_FRAME_THRESH;    // prevent overflow
-#ifdef _DEBUG_TRACKING
+//#ifdef _DEBUG_TRACKING
         printf ("Accu. dec frames: %u\n", uiYoloDec);
-#endif
+//#endif
 
         // Score is to estimate how likely a bound box is the tracked one in prev frame
         // Score is the quare distance of the two diagonal points of detected boxes 
@@ -568,8 +568,10 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         if (boxes.empty())
             uiYoloDec = 0;
         
+        flagGoodTrack   = false;
+        flagFirstFrame  = true;
         ret = -4;
-        // Do not instantly return here to see how it preforms, debug only
+        return ret;
     }
     else if (boxes.empty() && flagFirstFrame)
     {   /// Try to differenciate bad track and totally no detection
@@ -654,19 +656,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
 #ifdef _DEBUG_TIMING
     putchar('\n');
 #endif
-    // Update previous frame info
-    this->PrevFrame      = image;
-    this->PrevBox        = TrackedBox;
-    this->PrevIndiBox    = indicationBox;
-    this->xPrevCenter    = xCenter;
-    this->yPrevCenter    = yCenter;
-    this->momentum[0]    = 0.4 * (xCenter - xPrevCenter) + 0.6 * momentum[0];
-    this->momentum[1]    = 0.4 * (yCenter - yPrevCenter) + 0.6 * momentum[1];
-    // Handle return value
-    xCenterRet = xCenter;
-    yCenterRet = yCenter;
-    indiBoxRet = indicationBox;
-
+    
     if (uiTLCount > uiMaxTLCnt)
     {   // TRACK LOST
         /// re-initialize prev frame info
@@ -683,7 +673,22 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         this->uiYoloDec      = 0;
 
         ret = -1;
+        return ret;
     }
+
+    // Update previous frame info
+    this->PrevFrame      = image;
+    this->PrevBox        = TrackedBox;
+    this->PrevIndiBox    = indicationBox;
+    this->xPrevCenter    = xCenter;
+    this->yPrevCenter    = yCenter;
+    this->momentum[0]    = 0.4 * (xCenter - xPrevCenter) + 0.6 * momentum[0];
+    this->momentum[1]    = 0.4 * (yCenter - yPrevCenter) + 0.6 * momentum[1];
+    // Handle return value
+    xCenterRet = xCenter;
+    yCenterRet = yCenter;
+    indiBoxRet = indicationBox;
+
 
     return ret;
 }
