@@ -13,7 +13,7 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
         // 检查模型是否成功加载
         if (pose_estimator.isModelEmpty() || yolo_model.isModelEmpty()) 
         {
-            throw std::runtime_error("模型加载失败");
+            throw std::runtime_error("Failed to load models");
         }
         
         // 设置帧尺寸
@@ -24,17 +24,17 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
         initThreads();
         
         // 初始化完成
-        std::cout << "HumanTracker初始化成功" << std::endl;
+        std::cout << "HumanTracker initialized" << std::endl;
     }
     catch (const std::runtime_error& e) 
     {   // 捕获并重新抛出异常，添加更多上下文信息
-        std::string errorMsg = "HumanTracker初始化失败: ";
+        std::string errorMsg = "Cannot initialize HumanTracker: ";
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
     catch (const std::exception& e) 
     {   // 捕获其他可能的异常
-        std::string errorMsg = "HumanTracker初始化时发生未知错误: ";
+        std::string errorMsg = "Unknown error initializing HumanTracker: ";
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
@@ -74,7 +74,7 @@ HumanTracker::~HumanTracker()
         optiflow_thread = nullptr;
     }
     
-    std::cout << "HumanTracker已销毁" << std::endl;
+    std::cout << "HumanTracker distructed" << std::endl;
 }
 
 void HumanTracker::initThreads()
