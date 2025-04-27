@@ -501,7 +501,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     /// @todo Temporal correlation too shallow for now, may keep deeper temporal box info
     if (boxes.size() >= 1)
     {   // Process tracking of boxes here
-        /// @todo   Obtain another method that detects person only and returns boxes, 
+        /// @todo   Obtain another method that detects all people only and returns boxes, 
         ///         in convience of user selectig the person to track in the front end
 
         // got detection, increase counter for cont. frames that got detection.
@@ -704,7 +704,7 @@ void HumanTracker::clear ()
     momentum[1] = 0;
     momentum[0] = 0;
 
-    bool flagFirstFrame = true;
+    flagFirstFrame = true;
 
     InitBox = {0, 0, 0, 0};
 
@@ -717,4 +717,5 @@ void HumanTracker::clear ()
     xPrevCenter = -1;
     yPrevCenter = -1;
     uiTLCount   = 0;
+    uiYoloDec   = 0;
 }
