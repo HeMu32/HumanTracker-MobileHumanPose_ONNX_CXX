@@ -1,10 +1,9 @@
 #include "HumanTracker.h"
-#include <iostream>
 
 HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& yoloModelPath, int xFrameSize, int yFrameSize)
     : pose_estimator(poseModelPath)  // 直接在初始化列表中构造
-    , yolo_model(yoloModelPath, 0.3, 0.3, 0.4)  // 直接在初始化列表中构造
-    , detection_done(false)
+    , yolo_model(yoloModelPath, objThreshold, confThreshold, nmsThreshold)  // 直接在初始化列表中构造
+    , detection_done(true)  // 修改为 true，确保线程初始状态正确
     , thread_running(false)
     , yolo_thread(nullptr)
     , optiflow_thread(nullptr)
@@ -12,26 +11,34 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
     , kalman_state(4, 1, CV_32F)
     , kalman_measure(2, 1, CV_32F)
     , kalman_initialized(false)
+    , optiflow_done(true)  // 确保初始状态正确
 {
     try {
         // 检查模型是否成功加载
         if (pose_estimator.isModelEmpty() || yolo_model.isModelEmpty()) 
         {
-            throw std::runtime_error("模型加载失败");
+            throw std::runtime_error("Failed to load models");
         }
         
+        // 设置帧尺寸
+        this->xFrameSize = xFrameSize;
+        this->yFrameSize = yFrameSize;
+        
+        // 初始化线程
+        initThreads();
+        
         // 初始化完成
-        std::cout << "HumanTracker初始化成功" << std::endl;
+        std::cout << "HumanTracker initialized" << std::endl;
     }
     catch (const std::runtime_error& e) 
     {   // 捕获并重新抛出异常，添加更多上下文信息
-        std::string errorMsg = "HumanTracker初始化失败: ";
+        std::string errorMsg = "Cannot initialize HumanTracker: ";
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
     catch (const std::exception& e) 
     {   // 捕获其他可能的异常
-        std::string errorMsg = "HumanTracker初始化时发生未知错误: ";
+        std::string errorMsg = "Unknown error initializing HumanTracker: ";
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
@@ -57,12 +64,14 @@ HumanTracker::~HumanTracker()
     
     {   // 唤醒YOLO线程以便退出
         std::lock_guard<std::mutex> lock(mtxYolo);
+        thread_image = cv::Mat(); // 清空图像
         detection_done = true;
     }
     condVarYolo.notify_one();
     
     {   // 唤醒光流线程以便退出
         std::lock_guard<std::mutex> lock(mtxOptiFlow);
+        thread_prevFrame = cv::Mat(); // 清空图像
         optiflow_done = true;
     }
     condVarOptiFlow.notify_one();
@@ -72,13 +81,17 @@ HumanTracker::~HumanTracker()
     {
         yolo_thread->join();
         delete yolo_thread;
+        yolo_thread = nullptr;
     }
     
     if (optiflow_thread && optiflow_thread->joinable())
     {
         optiflow_thread->join();
         delete optiflow_thread;
+        optiflow_thread = nullptr;
     }
+    
+    std::cout << "HumanTracker distructed" << std::endl;
 }
 
 void HumanTracker::initThreads()
@@ -274,7 +287,8 @@ std::pair<int, int> HumanTracker::processOpticalFlowResults(
         }
         
         // 显示光流追踪结果
-        cv::resize(flowVis, flowVis, cv::Size(), 0.5, 0.5);
+        float scale = 400.0f / flowVis.rows;
+        cv::resize(flowVis, flowVis, cv::Size(), scale, scale, cv::INTER_LINEAR);
         cv::imshow("Optical Flow Tracking", flowVis);
         cv::waitKey(1);
     }
@@ -400,7 +414,19 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         return ret;
     }
     
+    // 检查线程是否已初始化
+    if (!thread_running || yolo_thread == nullptr || optiflow_thread == nullptr)
+    {
+#ifdef _DEBUG
+        std::cout << "HumanTracker::estimate threads not initialized" << std::endl;
+#endif
+        ret = -3; // 表示线程未初始化
+        return ret;
+    }
+    
     // 检查输入图像尺寸
+    /// @todo obtain valid frame size info
+/*      For convience do not perform frame size now
     if (image.cols != xFrameSize || image.rows != yFrameSize)
     {
 #ifdef _DEBUG
@@ -411,7 +437,8 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         ret = -2;
         return ret;
     }
-    
+*/
+
     std::vector<cv::Vec4i> boxes;   // Bound box of detected people by Yolo
     cv::Vec4i TrackedBox;           // Bound box for the person be tracked, elected from @var boxes 
     cv::Vec4i PredictedBox;         // Predicted bound box, calculated by PrevBox + MoVec
@@ -517,12 +544,21 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     PredictedBox[2] = kalman_x + box_w / 2;
     PredictedBox[3] = kalman_y + box_h / 2;
 
-    /// @todo Temporal correlation to shallow for now, may keep deeper temporal box info
+    /// @todo Temporal correlation too shallow for now, may keep deeper temporal box info
     if (boxes.size() >= 1)
     {   // Process tracking of boxes here
         /// @todo   Obtain another method that detects person only and returns boxes, 
         ///         in convience of user selectig the person to track in the front end
 
+        // got detection, increase counter for cont. frames that got detection.
+        this->uiYoloDec++;
+        if (this->uiYoloDec > YOLO_CONFRIM_DEC_FRAME_THRESH)
+            this->uiYoloDec = YOLO_CONFRIM_DEC_FRAME_THRESH;    // prevent overflow
+#ifdef _DEBUG_TRACKING
+        printf ("Accu. dec frames: %u\n", uiYoloDec);
+#endif
+
+        // Score is to estimate how likely a bound box is the tracked one in prev frame
         // Score is the quare distance of the two diagonal points of detected boxes 
         // to the predicted box generated by the weighted movement vector 
         std::list<float> scoreList;
@@ -576,8 +612,23 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
         }
     }
 
-    if (flagGoodTrack == false || boxes.empty()) 
-    {
+    if (uiYoloDec < YOLO_CONFRIM_DEC_FRAME_THRESH)
+    {   // Want up to 4 frames with detection of preson, to enter tracking process
+        if (boxes.empty())
+            uiYoloDec = 0;
+        
+        flagGoodTrack   = false;
+        flagFirstFrame  = true;
+        ret = -4;
+        return ret;
+    }
+    else if (boxes.empty() && flagFirstFrame)
+    {   /// Try to differenciate bad track and totally no detection
+        ret = -4;
+        return ret;
+    }
+    else if (flagGoodTrack == false || boxes.empty()) 
+    {   // Yolo fails
 #ifdef _DEBUG_TRACKING
         printf ("未检测到人体  ");
 #endif
@@ -645,15 +696,35 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
 
     // 显示结果图像 - 调整到400像素高
     cv::Mat resized_img;
-    float scale = 640.0f / dect_img.rows;
+    float scale = 400.0f / dect_img.rows;
     cv::resize(dect_img, resized_img, cv::Size(), scale, scale, cv::INTER_LINEAR);
-    cv::imshow("Pose Estimation", resized_img);
+    cv::imshow("Track result", resized_img);
     cv::waitKey(20);
 #endif
     // 为上面的输出换行
 #ifdef _DEBUG_TIMING
     putchar('\n');
 #endif
+    
+    if (uiTLCount > uiMaxTLCnt)
+    {   // TRACK LOST
+        /// re-initialize prev frame info
+        /// @todo check if there's any other need to be reset
+        this->PrevFrame      = cv::Mat();
+        this->PrevBox        = {0, 0, 0, 0};
+        this->PrevIndiBox    = {0, 0, 0, 0};
+        this->xPrevCenter    = xCenter;         // May not need to reset?
+        this->yPrevCenter    = yCenter;         // May not need to reset?
+        this->momentum[0]    = 0;
+        this->momentum[1]    = 0;
+        this->uiTLCount      = 0;
+        this->flagFirstFrame = true;
+        this->uiYoloDec      = 0;
+
+        ret = -1;
+        return ret;
+    }
+
     // Update previous frame info
     this->PrevFrame      = image;
     this->PrevBox        = TrackedBox;
@@ -667,22 +738,6 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     yCenterRet = yCenter;
     indiBoxRet = indicationBox;
 
-    if (uiTLCount > uiMaxTLCnt)
-    {
-        /// re-initialize prev frame info
-        /// @todo check if there's any other need to be reset
-        this->PrevFrame      = cv::Mat();
-        this->PrevBox        = {0, 0, 0, 0};
-        this->PrevIndiBox    = {0, 0, 0, 0};
-        this->xPrevCenter    = xCenter;         // May not need to reset?
-        this->yPrevCenter    = yCenter;         // May not need to reset?
-        this->momentum[0]    = 0;
-        this->momentum[1]    = 0;
-        this->uiTLCount      = 0;
-        this->flagFirstFrame = true;
-
-        ret = -1;
-    }
 
     return ret;
 }
