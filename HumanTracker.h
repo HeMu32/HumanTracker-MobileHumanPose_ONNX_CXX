@@ -182,11 +182,6 @@ private:
     bool            optiflow_done       = false;
     int             thread_xOptiFlow    = 0;
     int             thread_yOptiFlow    = 0;
-    
-    cv::KalmanFilter kalman_filter;
-    cv::Mat kalman_state;      // 状态向量
-    cv::Mat kalman_measure;    // 观测向量
-    bool kalman_initialized = false;
 };
 
 #endif // POSE_DETECTOR_H

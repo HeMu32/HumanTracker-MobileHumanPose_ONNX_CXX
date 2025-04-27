@@ -7,10 +7,6 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
     , thread_running(false)
     , yolo_thread(nullptr)
     , optiflow_thread(nullptr)
-    , kalman_filter(4, 2, 0) // 4维状态(位置+速度), 2维观测(位置)
-    , kalman_state(4, 1, CV_32F)
-    , kalman_measure(2, 1, CV_32F)
-    , kalman_initialized(false)
     , optiflow_done(true)  // 确保初始状态正确
 {
     try {
@@ -42,19 +38,6 @@ HumanTracker::HumanTracker(const std::string& poseModelPath, const std::string& 
         errorMsg += e.what();
         throw std::runtime_error(errorMsg);
     }
-    // Kalman参数初始化
-    kalman_filter.transitionMatrix = (cv::Mat_<float>(4, 4) <<
-        1, 0, 1, 0,
-        0, 1, 0, 1,
-        0, 0, 1, 0,
-        0, 0, 0, 1);
-    kalman_filter.measurementMatrix = cv::Mat::eye(2, 4, CV_32F);
-    setIdentity(kalman_filter.processNoiseCov, cv::Scalar::all(1e-2));
-    setIdentity(kalman_filter.measurementNoiseCov, cv::Scalar::all(1e-1));
-    setIdentity(kalman_filter.errorCovPost, cv::Scalar::all(1));
-    kalman_state.setTo(0);
-    kalman_measure.setTo(0);
-    kalman_initialized = false;
 }
 
 HumanTracker::~HumanTracker()
@@ -506,43 +489,14 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     // Obtain the weighted movement vector
     xMoVec = momentum[0] * 0.4 + xOptiFlow * 0.6;
     yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
-/*
+
     // Calculate bound box prediction with only momentum
+    /// @todo Replace with some better algo. eg. Kalman Filter
     PredictedBox[0] = PrevBox[0] + xMoVec;
     PredictedBox[1] = PrevBox[1] + yMoVec;
     PredictedBox[2] = PrevBox[2] + xMoVec;
     PredictedBox[3] = PrevBox[3] + yMoVec;
-*/
-    // Kalman Filter 预测与校正
-    cv::Point2f measured_center((PrevBox[0] + PrevBox[2]) / 2.0f + xMoVec,
-                                (PrevBox[1] + PrevBox[3]) / 2.0f + yMoVec);
 
-    if (!kalman_initialized) 
-    {
-        // 初始化Kalman状态
-        kalman_state.at<float>(0) = measured_center.x;
-        kalman_state.at<float>(1) = measured_center.y;
-        kalman_state.at<float>(2) = 0;
-        kalman_state.at<float>(3) = 0;
-        kalman_filter.statePost = kalman_state.clone();
-        kalman_initialized = true;
-    }
-    // 预测
-    cv::Mat prediction = kalman_filter.predict();
-    // 用观测值校正
-    kalman_measure.at<float>(0) = measured_center.x;
-    kalman_measure.at<float>(1) = measured_center.y;
-    kalman_filter.correct(kalman_measure);
-
-    // 用Kalman预测结果更新PredictedBox
-    float kalman_x = prediction.at<float>(0);
-    float kalman_y = prediction.at<float>(1);
-    int box_w = PrevBox[2] - PrevBox[0];
-    int box_h = PrevBox[3] - PrevBox[1];
-    PredictedBox[0] = kalman_x - box_w / 2;
-    PredictedBox[1] = kalman_y - box_h / 2;
-    PredictedBox[2] = kalman_x + box_w / 2;
-    PredictedBox[3] = kalman_y + box_h / 2;
 
     /// @todo Temporal correlation too shallow for now, may keep deeper temporal box info
     if (boxes.size() >= 1)
