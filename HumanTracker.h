@@ -12,6 +12,7 @@
 
 #include "yolo_fast.h"
 #include "mobileHumanPose.h"
+#include <opencv2/video/tracking.hpp>
 
 
 #define INDIC_BOX_ASP 2.5
@@ -59,6 +60,9 @@ public:
     /// @param xSize 帧宽度
     /// @param ySize 帧高度
     void setFrameSize(int xSize, int ySize);
+
+    /// @brief Reset virables to init state.
+    void clear();
 
 private:
     // Models employed here
@@ -155,6 +159,11 @@ private:
     bool            optiflow_done       = false;
     int             thread_xOptiFlow    = 0;
     int             thread_yOptiFlow    = 0;
+    
+    cv::KalmanFilter kalman_filter;
+    cv::Mat kalman_state;      // 状态向量
+    cv::Mat kalman_measure;    // 观测向量
+    bool kalman_initialized = false;
 };
 
 #endif // POSE_DETECTOR_H
