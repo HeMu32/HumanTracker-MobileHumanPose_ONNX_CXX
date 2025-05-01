@@ -491,7 +491,7 @@ int HumanTracker::estimate(const cv::Mat& image, int &xCenterRet, int &yCenterRe
     yMoVec = momentum[1] * 0.5 + yOptiFlow * 0.5;
 
     // Calculate bound box prediction with only momentum
-    /// @todo Replace with some better algo. eg. Kalman Filter
+    /// @todo Replace with some better algo.
     PredictedBox[0] = PrevBox[0] + xMoVec;
     PredictedBox[1] = PrevBox[1] + yMoVec;
     PredictedBox[2] = PrevBox[2] + xMoVec;
