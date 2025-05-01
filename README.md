@@ -1,3 +1,5 @@
+# 基于C++的, Yolo-Fastest-v2 以及 Mobile Human Pose 的跟踪程序.
+
 # 尝试使用C++推理Mobile Human Pose
 
 原方案请参考: https://github.com/HeMu32/ONNX-Mobile-Human-Pose-3D
